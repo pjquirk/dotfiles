@@ -1,0 +1,15 @@
+{
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    "remote.SSH.showLoginTerminal": true,
+    "terminal.integrated.shell.osx": "/usr/local/bin/pwsh-preview",
+    "files.trimTrailingWhitespace": true,
+    "omnisharp.useGlobalMono": "always",
+    "omnisharp.monoPath": "/Library/Frameworks/Mono.framework/Versions/6.8.0",
+    "vs-kubernetes": {
+        "vs-kubernetes.helm-path.mac": "/Users/pjquirk/.vs-kubernetes/tools/helm/darwin-amd64/helm",
+        "vs-kubernetes.draft-path.mac": "/Users/pjquirk/.vs-kubernetes/tools/draft/darwin-amd64/draft"
+    },
+    "csharpsortusings.sort.usings.splitGroups": false,
+    "csharpsortusings.sort.usings.order": "System Microsoft GitHub"
+}
