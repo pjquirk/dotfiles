@@ -1,3 +1,5 @@
+export GOPATH="$HOME/go"
+
 alias ls='ls -l'
 
 export UNAME=$(uname)
