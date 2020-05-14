@@ -18,7 +18,7 @@ cp $HOME/Library/ApplicationSupport/Code/User/{keybindings.json,settings.json,sp
 # code --list-extensions --show-versions >> ../../vscode/extensions.txt
 
 # copy other dot files 
-cp $HOME/{.zshrc,.vimrc,.bash_profile,.bashrc,.gitconfig} .
+cp $HOME/{.zshrc,.vimrc,.bash_profile,.bashrc,.gitconfig,.git-completion.bash} .
 
 
 
