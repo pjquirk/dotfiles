@@ -11,5 +11,8 @@
         "vs-kubernetes.draft-path.mac": "/Users/pjquirk/.vs-kubernetes/tools/draft/darwin-amd64/draft"
     },
     "csharpsortusings.sort.usings.splitGroups": false,
-    "csharpsortusings.sort.usings.order": "System Microsoft GitHub"
+    "csharpsortusings.sort.usings.order": "System Microsoft GitHub",
+    "cSpell.userWords": [
+        "octokit"
+    ]
 }
