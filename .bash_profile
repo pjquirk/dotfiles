@@ -164,3 +164,4 @@ else
   export LS_COLORS
 fi
 
+source ~/.git-completion.bash
