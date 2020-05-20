@@ -1,4 +1,8 @@
-export GOPATH="$HOME/go"
+export GOPATH="$HOME/golib"
+export PATH=$PATH:$GOPATH/bin
+export GOPATH="$GOPATH:$HOME/Source/Go"
+
+alias src='cd ~/Source'
 
 alias ls='ls -l'
 

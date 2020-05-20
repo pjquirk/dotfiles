@@ -16,5 +16,6 @@
         "octokit"
     ],
     "todo-tree.tree.showScanModeButton": false,
-    "todo-tree.regex.regex": "((//|#|<!--|;|/\\*|^)?\\s*($TAGS)|^\\s*- \\[ \\])"
+    "todo-tree.regex.regex": "((//|#|<!--|;|/\\*|^)?\\s*($TAGS)|^\\s*- \\[ \\])",
+    "window.zoomLevel": 0
 }
