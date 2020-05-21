@@ -13,6 +13,7 @@
     "csharpsortusings.sort.usings.splitGroups": false,
     "csharpsortusings.sort.usings.order": "System Microsoft GitHub",
     "cSpell.userWords": [
+        "kusto",
         "octokit"
     ],
     "todo-tree.tree.showScanModeButton": false,
