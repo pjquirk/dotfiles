@@ -13,8 +13,12 @@
     "csharpsortusings.sort.usings.splitGroups": false,
     "csharpsortusings.sort.usings.order": "System Microsoft GitHub",
     "cSpell.userWords": [
+        "hmac",
+        "hmac sha signature",
         "kusto",
-        "octokit"
+        "octokit",
+        "sha",
+        "signature"
     ],
     "todo-tree.tree.showScanModeButton": false,
     "todo-tree.regex.regex": "((//|#|<!--|;|/\\*|^)?\\s*($TAGS)|^\\s*- \\[ \\])",
