@@ -23,6 +23,5 @@
     "todo-tree.tree.showScanModeButton": false,
     "todo-tree.regex.regex": "((//|#|<!--|;|/\\*|^)?\\s*($TAGS)|^\\s*- \\[ \\])",
     "window.zoomLevel": 0,
-    "editor.codeLens": false,
     "csharp.referencesCodeLens.enabled": false
 }
