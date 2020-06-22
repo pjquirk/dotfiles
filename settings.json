@@ -2,7 +2,7 @@
     "git.enableSmartCommit": true,
     "git.confirmSync": false,
     "remote.SSH.showLoginTerminal": true,
-    "terminal.integrated.shell.osx": "/usr/local/bin/pwsh-preview",
+    "terminal.integrated.shell.osx": "/bin/bash",
     "files.trimTrailingWhitespace": true,
     "omnisharp.useGlobalMono": "always",
     "omnisharp.monoPath": "/Library/Frameworks/Mono.framework/Versions/6.8.0",
