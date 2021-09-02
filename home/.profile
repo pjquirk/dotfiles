@@ -1,3 +1,0 @@
-export COMPlus_DbgEnableMiniDump=1
-export COMPlus_DbgMiniDumpType=2
-export COMPlus_CreateDumpDiagnostics=1
