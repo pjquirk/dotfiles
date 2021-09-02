@@ -1,0 +1,29 @@
+[github]
+    user = pjquirk
+[user]
+	name = PJ Quirk
+	#email = paquirk@microsoft.com
+	email = pjquirk@github.com
+[core]
+	autocrlf = false
+	preloadindex = true
+	fscache = true
+	editor = code --wait
+[push]
+	default = simple
+[alias]
+	diffui = difftool --no-prompt
+	diffdir = difftool --dir-diff --tool=winmerge
+	up = pull --rebase --prune
+	lg = log --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold cyan)<%an>%Creset' --abbrev-commit --stat
+	update-pr = push --force-with-lease origin
+	create-pr = !git push -u origin HEAD && open https://dev.azure.com/mseng/AzureDevOps/_git/AzDevNext/pullrequests?_a=mine
+    create-pr-github = !git push -u origin HEAD && open `git config --get remote.origin.url | sed -E -n 's@.*:(.*)\\.git@http://github.com/\\1@p'`
+	# what-changed = !@for /F "usebackq tokens=2* delims=: " %W in ^(`mode con ^| findstr Columns`^) do @set CONSOLE_WIDTH=%W && git diff --stat=%CONSOLE_WIDTH% master..
+	what-changed = diff --stat=170 master..
+[credential]
+	helper = osxkeychain
+[color]
+	ui = true
+[url "git@github.com:"]
+	insteadOf = https://github.com/
