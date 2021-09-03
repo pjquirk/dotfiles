@@ -4,7 +4,11 @@
 # customizing the $PATH environment variable.
 
 ##### Make Mac stop telling me to use a different shell
-export BASH_SILENCE_DEPRECATION_WARNING=1
+UNAME=$(uname)
+export UNAME
+if [ "$UNAME" = "Darwin" ]; then
+  export BASH_SILENCE_DEPRECATION_WARNING=1
+fi
 
 ##### Source the profile file
 if [ -f ~/.profile ]; then
