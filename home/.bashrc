@@ -4,7 +4,8 @@
 
 ##### Aliases
 alias src='cd ~/Source'
-alias ls='ls -l'
+export LS_OPTIONS=''
+alias ls='ls -l $LS_OPTIONS'
 
 
 ##### Ensure ls uses colors
@@ -15,7 +16,8 @@ if [ "$UNAME" = "Darwin" ]; then
   export CLICOLOR=1
   export LSCOLORS=ExFxCxDxBxegedabagaced
 else
-  export LS_COLORS="ow=01;34:*.cs=35:*.csproj=1;33:*.proj=1;33:ex=0"
+  export LS_OPTIONS='--color=auto'
+  eval "$(dircolors)"
 fi
 
 
