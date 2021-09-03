@@ -13,8 +13,10 @@ if [ -f ~/.profile ]; then
 fi
 
 ##### SSH
-# Setup ssh-agent
-ssh-add -K ~/.ssh/id_rsa
+# Setup ssh-agent (not on BP_DEV)
+if [[ -z "$BP_DEV" ]]; then
+  ssh-add -K ~/.ssh/id_rsa
+fi
 
 
 ##### Golang
