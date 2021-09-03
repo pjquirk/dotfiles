@@ -5,9 +5,9 @@ git clone git://github.com/andsens/homeshick.git "$HOME/.homesick/repos/homeshic
 # shellcheck disable=SC1091
 source "$HOME/.homesick/repos/homeshick/homeshick.sh"
 
-### Clone my dotfiles
+### Clone and link my dotfiles
 homeshick clone pjquirk/dotfiles --quiet --batch
 homeshick link dotfiles --force
 
-### Install SBP
+### Install SBP (simple bash prompt)
 git clone git@github.com:brujoand/sbp.git $HOME/.sbp
