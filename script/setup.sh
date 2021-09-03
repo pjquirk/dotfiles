@@ -6,4 +6,8 @@ git clone git://github.com/andsens/homeshick.git "$HOME/.homesick/repos/homeshic
 source "$HOME/.homesick/repos/homeshick/homeshick.sh"
 
 ### Clone my dotfiles
-$HOME/.homesick/repos/homeshick/bin/homeshick --quiet clone pjquirk/dotfiles
+homeshick clone pjquirk/dotfiles --quiet --batch
+homeshick link dotfiles --force
+
+### Install SBP
+git clone git@github.com:brujoand/sbp.git $HOME/.sbp
