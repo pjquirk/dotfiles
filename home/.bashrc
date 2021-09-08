@@ -46,3 +46,18 @@ fi
 ##### Source homeshick (for managing dotfiles)
 source "$HOME/.homesick/repos/homeshick/homeshick.sh"
 
+
+##### Colorful manpages
+export LESS_TERMCAP_mb=$'\E[01;31m'
+export LESS_TERMCAP_md=$'\E[01;31m'
+export LESS_TERMCAP_me=$'\E[0m'
+export LESS_TERMCAP_se=$'\E[0m'
+export LESS_TERMCAP_so=$'\E[01;44;33m'
+export LESS_TERMCAP_ue=$'\E[0m'
+export LESS_TERMCAP_us=$'\E[01;32m'
+# Set to avoid `env` output from changing console colour
+export LESS_TERMEND=$'\E[0m'
+
+
+##### Set the text editor to use
+export EDITOR="vim"
