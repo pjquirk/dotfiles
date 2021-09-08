@@ -12,3 +12,10 @@ source "$HOME/.homesick/repos/homeshick/homeshick.sh"
 ### Clone and link my dotfiles
 homeshick clone pjquirk/dotfiles --quiet --batch
 homeshick link dotfiles --force
+
+if [[ ! -z $BP_DEV ]]; then
+    instance_id=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+    aws ec2 describe-tags --filters "Name=resource-id,Values=${instance_id}" --query 'Tags [?Key==`custom_tags`].Value' \
+        | tr -d '\n[]" ' \
+        >> "$HOME/.bpdev_tags"
+fi
