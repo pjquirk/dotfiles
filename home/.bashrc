@@ -41,3 +41,8 @@ if [ -f "${SBP_PATH}/sbp.bash" ]; then
   # shellcheck disable=SC1091
   source "${SBP_PATH}/sbp.bash"
 fi
+
+
+##### Source homeshick (for managing dotfiles)
+source "$HOME/.homesick/repos/homeshick/homeshick.sh"
+
