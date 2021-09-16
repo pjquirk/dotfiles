@@ -3,10 +3,11 @@
 
 tdhelp () {
   echo 'ToDo:'
-  echo '  todo              List open items'
-  echo '  tdn "<title>"     Create a new issue'
-  echo '  tdc <number>      Close an existing issue'
-  echo '  tdo <number>      Open an issue for notes'
+  echo '  todo                List open items'
+  echo '  tdn "<title>"       Create a new issue'
+  echo '  tdc <number>        Close an existing issue'
+  echo '  tdo <number>        Open an issue for notes'
+  echo '  tdl <issue URI>     Open a note issue to track an existing issue'
 }
 
 gh_repo () {
