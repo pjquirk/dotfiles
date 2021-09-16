@@ -7,7 +7,6 @@ alias src='cd ~/Source'
 export LS_OPTIONS=''
 alias ls='ls -l $LS_OPTIONS'
 
-
 ##### Ensure ls uses colors
 UNAME=$(uname)
 export UNAME
@@ -45,6 +44,10 @@ fi
 
 ##### Source homeshick (for managing dotfiles)
 source "$HOME/.homesick/repos/homeshick/homeshick.sh"
+
+
+##### TODO Management
+source "$HOME/.config/pjquirk/todo.sh"
 
 
 ##### Colorful manpages
