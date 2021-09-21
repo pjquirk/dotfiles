@@ -5,7 +5,7 @@ $env:AzureSubscriptionId="8a53cb9a-a3a5-4602-aa2d-8c171edde3c7" # John Mogensen'
 
 # Set some POSH Git settings
 $GitPromptSettings.DefaultPromptAbbreviateHomeDirectory = $true
-if ($env:SKYRISEV3 -ne '') {
+if ($env:SKYRISEV3) {
     $GitPromptSettings.DefaultPromptPrefix = 'Skyrise '
 }
 
