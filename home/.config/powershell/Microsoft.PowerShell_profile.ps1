@@ -1,7 +1,7 @@
 # Profile for All Users, Current Host
 #   See: https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-7.1
 
-if (-not (Get-InstalledModule posh-git)) {
+if (-not (Get-InstalledModule -ErrorAction Ignore -Name posh-git)) {
     Install-Module posh-git -Force
 }
 Import-Module posh-git
