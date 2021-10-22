@@ -23,5 +23,3 @@
 	what-changed = diff --stat=170 master..
 [color]
 	ui = true
-[url "git@github.com:"]
-	insteadOf = https://github.com/
