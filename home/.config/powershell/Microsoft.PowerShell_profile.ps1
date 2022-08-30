@@ -17,3 +17,21 @@ $GitPromptSettings.DefaultPromptAbbreviateHomeDirectory = $true
 $GitPromptSettings.DefaultPromptPrefix.Text = '$(if ($env:SKYRISEV3) { "Skyrise " } else { "" })'
 $GitPromptSettings.DefaultPromptPrefix.ForegroundColor = [ConsoleColor]::Magenta
 
+# 
+# Helper functions
+#
+
+function New-Tracepoint {
+    do
+    {
+        # Truncate to get last two digits equal to zero
+        $tp = Get-Random -Minimum 10000 -Maximum 21474836
+        # Search for a commonly used pattern since we can't search for partial tracepoints 
+        $testTracepoint = '{0}01' -f $tp
+        # Check if it exists in the source already
+        $count = & gh api -H "Accept: application/vnd.github.v3+json" "/search/code?q=$testTracepoint%20repo:github/actions-dotnet%20extension:cs&per_page=1" |
+            ConvertFrom-Json |
+            Select-Object -ExpandProperty 'total_count'
+    } while ($count -gt 0)
+    return '{0}00' -f $tp
+}

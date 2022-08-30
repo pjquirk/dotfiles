@@ -2,8 +2,14 @@
 #
 # Use .bashrc to run commands that should run every time you launch a new shell.
 
+##### Setup GPG
+GPG_TTY=$(tty)
+export GPG_TTY
+
 ##### Aliases
+alias adn='cd ~/Source/GitHub/github/actions-dotnet/src'
 alias src='cd ~/Source'
+alias newcs='gh cs create --repo github/github'
 export LS_OPTIONS=''
 alias ls='ls -l $LS_OPTIONS'
 
