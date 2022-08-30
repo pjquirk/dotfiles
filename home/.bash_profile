@@ -35,8 +35,10 @@ export NVM_DIR="$HOME/.nvm"
   [ -s "/usr/local/opt/nvm/etc/bash_completion" ] && . "/usr/local/opt/nvm/etc/bash_completion"  # This loads nvm bash_completion
 
 
-##### Set Ruby envvars
-eval "$(rbenv init -)"
+##### Set Ruby envvars (locally, codespaces already does this)
+if [ -z "$CODESPACES" ]; then
+  eval "$(rbenv init -)"
+fi
 
 
 ##### Source our bashrc file
