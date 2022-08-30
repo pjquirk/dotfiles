@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
 
-export PROTOCOL="https"
-if [ -n "$CODESPACES" ]; then
-  PROTOCOL="git"
-fi
-
 ### Install SBP (simple bash prompt)
-git clone "$PROTOCOL://github.com/brujoand/sbp.git" "$HOME/.sbp"
+git clone "https://github.com/brujoand/sbp.git" "$HOME/.sbp"
 
 ### Install homeshick
-git clone "$PROTOCOL://github.com/andsens/homeshick.git" "$HOME/.homesick/repos/homeshick"
+git clone "https://github.com/andsens/homeshick.git" "$HOME/.homesick/repos/homeshick"
 
 # shellcheck disable=SC1091
 source "$HOME/.homesick/repos/homeshick/homeshick.sh"
