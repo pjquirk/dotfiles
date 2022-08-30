@@ -17,8 +17,8 @@ if [ -f ~/.profile ]; then
 fi
 
 ##### SSH
-# Setup ssh-agent (not on BP_DEV)
-if [[ -z "$BP_DEV" ]]; then
+# Setup ssh-agent (not on BP_DEV or Codespaces)
+if [[ -z "$BP_DEV" && -z "$CODESPACES" ]]; then
   ssh-add -K ~/.ssh/id_rsa
 fi
 
