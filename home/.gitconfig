@@ -11,6 +11,8 @@
 	editor = code --wait
 [push]
 	default = simple
+[merge]
+    conflictStyle = zdiff3
 [alias]
 	diffui = difftool --no-prompt
 	diffdir = difftool --dir-diff --tool=winmerge

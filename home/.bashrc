@@ -7,7 +7,11 @@ GPG_TTY=$(tty)
 export GPG_TTY
 
 ##### Aliases
-alias adn='cd ~/Source/GitHub/github/actions-dotnet/src'
+if [ -n "$CODESPACES" ]; then
+  alias adn="cd $SKYRISE_PATH"
+else
+  alias adn='cd ~/Source/GitHub/github/actions-dotnet/src'
+fi
 alias src='cd ~/Source'
 alias newcs='gh cs create --repo github/github'
 export LS_OPTIONS=''
