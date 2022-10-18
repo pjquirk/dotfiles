@@ -4,6 +4,7 @@
 	name = PJ Quirk
 	#email = paquirk@microsoft.com
 	email = pjquirk@github.com
+	#signingKey = 858A3D7CE7AF2EF2
 [core]
 	autocrlf = false
 	preloadindex = true

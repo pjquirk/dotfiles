@@ -13,7 +13,7 @@ else
   alias adn='cd ~/Source/GitHub/github/actions-dotnet/src'
 fi
 alias src='cd ~/Source'
-alias newcs='gh cs create --repo github/github'
+alias newcs='gh cs create --repo github/github --devcontainer-path .devcontainer/devcontainer.json'
 export LS_OPTIONS=''
 alias ls='ls -l $LS_OPTIONS'
 
@@ -74,3 +74,7 @@ export LESS_TERMEND=$'\E[0m'
 
 ##### Set the text editor to use
 export EDITOR="vim"
+if [ -n "$CODESPACES" ]; then
+  # When using the command line, git can't find VS Code
+  export GIT_EDITOR="vim"
+fi
