@@ -9,9 +9,19 @@ git clone "https://github.com/andsens/homeshick.git" "$HOME/.homesick/repos/home
 # shellcheck disable=SC1091
 source "$HOME/.homesick/repos/homeshick/homeshick.sh"
 
+# Save the existing bashrc file
+if [[ -n "$CODESPACES" && -e "$HOME/.bashrc" ]]; then
+    cp "$HOME/.bashrc" "$HOME/.bashrc_cs"
+fi
+
 ### Clone and link my dotfiles
 homeshick clone pjquirk/dotfiles --quiet --batch
 homeshick link dotfiles --force
+
+# Merge the bashrc with the pre-existing one
+if [[ -n "$CODESPACES" && -e "$HOME/.bashrc_cs" ]]; then
+    cat "$HOME/.bashrc_cs" >> "$HOME/.bashrc"
+fi
 
 if [ -n "$BP_DEV" ]; then
     instance_id=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
