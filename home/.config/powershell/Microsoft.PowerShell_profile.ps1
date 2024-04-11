@@ -8,8 +8,9 @@ Import-Module posh-git
 
 # Uncomment one of these based on your org/team
 # $env:AzureSubscriptionId="8a53cb9a-a3a5-4602-aa2d-8c171edde3c7" # John Mogensen's org (Actions_Platform_Eng)
-$env:AzureSubscriptionId="16eb6e57-e88b-49c9-8acb-26048bee1f93" # c2c-actions-compute specifically (VCFP_Eng)
+# $env:AzureSubscriptionId="16eb6e57-e88b-49c9-8acb-26048bee1f93" # c2c-actions-compute specifically (VCFP_Eng)
 # $env:AzureSubscriptionId="ed693d19-8167-4d94-9193-b21025975b8f" # Youhana's org (Actions_Core_Eng)
+$env:AzureSubscriptionId="9ed6f940-4ca4-4512-a8f8-a08f8d151201" # GHA: GitHub - NonProd - Compute Products - Actions Platform
 $env:AzureRegion = "eastus"
 
 # Set some POSH Git settings
