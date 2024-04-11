@@ -82,6 +82,7 @@ fi
 ##### Add some common codespaces things
 codespaces_fix_common_startup () {
   unset GITHUB_TOKEN
+  gh auth logout --user gh-containers-bot
   gh auth refresh
   export GITHUB_TOKEN=$(gh auth token)
   gh extension install github/gh-medic
