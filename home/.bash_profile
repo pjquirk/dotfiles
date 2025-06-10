@@ -19,7 +19,7 @@ fi
 ##### SSH
 # Setup ssh-agent (not on BP_DEV or Codespaces)
 if [[ -z "$BP_DEV" && -z "$CODESPACES" ]]; then
-  ssh-add -K ~/.ssh/id_rsa
+    ssh-add --apple-use-keychain ~/.ssh/id_ed25519
 fi
 
 
@@ -36,9 +36,9 @@ export NVM_DIR="$HOME/.nvm"
 
 
 ##### Set Ruby envvars (locally, codespaces already does this)
-if [ -z "$CODESPACES" ]; then
-  eval "$(rbenv init -)"
-fi
+#if [ -z "$CODESPACES" ]; then
+#  eval "$(rbenv init -)"
+#fi
 
 
 ##### Source our bashrc file
@@ -46,3 +46,9 @@ if [ -f ~/.bashrc ]; then
   # shellcheck disable=SC1091
 	source "$HOME/.bashrc"
 fi
+
+##### Add JetBrains tools, user binaries, etc. to the path
+export PATH="$PATH:$HOME/bin"
+
+# Set PATH, MANPATH, etc., for Homebrew.
+eval "$(/opt/homebrew/bin/brew shellenv)"

@@ -13,9 +13,31 @@ else
   alias adn='cd ~/Source/GitHub/github/actions-dotnet/src'
 fi
 alias src='cd ~/Source'
-alias newcs='gh cs create --repo github/github --devcontainer-path .devcontainer/actions-larger-runners/devcontainer.json -m xLargePremiumLinux'
+alias newcs='gh cs create --repo github/github --devcontainer-path .devcontainer/actions-larger-runners/devcontainer.json -m xLargePremiumLinux256gb'
+alias rcs='rename_codespace'
 export LS_OPTIONS=''
 alias ls='ls -l $LS_OPTIONS'
+
+create_new_gh_codespace() {
+  CODESPACE=$(gh cs create --repo github/github --devcontainer-path .devcontainer/actions-larger-runners/devcontainer.json -m xLargePremiumLinux256gb)
+
+  # Allow renaming a codespace if an argument is passed
+  if [ $# -ge 1 ]
+  then
+    rename_codespace $CODESPACE $1
+  fi
+}
+
+rename_codespace() {
+  if [ $# -lt 2 ]
+  then
+    echo "Usage: rcs CODESPACE_NAME DISPLAY_NAME"
+    return 1
+  fi
+  CODESPACE_NAME=$1
+  DISPLAY_NAME=$2
+  gh api -X PATCH user/codespaces/$CODESPACE_NAME -f "display_name=$DISPLAY_NAME" >/dev/null
+}
 
 ##### Ensure ls uses colors
 UNAME=$(uname)

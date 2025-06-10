@@ -25,3 +25,11 @@
 	what-changed = diff --stat=170 master..
 [color]
 	ui = true
+[credential]
+	helper = osxkeychain
+	helper = 
+	helper = /usr/local/share/gcm-core/git-credential-manager
+[credential "https://test-prodweu01.ghe.com"]
+	provider = github
+[credential "https://dev.azure.com"]
+	useHttpPath = true
