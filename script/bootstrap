@@ -1,29 +1,28 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
+DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 ### Install SBP (simple bash prompt)
-git clone "https://github.com/brujoand/sbp.git" "$HOME/.sbp"
+if [[ ! -d "$HOME/.sbp" ]]; then
+    git clone "https://github.com/brujoand/sbp.git" "$HOME/.sbp"
+fi
 
-### Install homeshick
-git clone "https://github.com/andsens/homeshick.git" "$HOME/.homesick/repos/homeshick"
-
-# shellcheck disable=SC1091
-source "$HOME/.homesick/repos/homeshick/homeshick.sh"
-
-# Save the existing bashrc file
-if [[ -n "$CODESPACES" && -e "$HOME/.bashrc" ]]; then
+# Save the existing bashrc file (for Codespaces)
+if [[ -n "${CODESPACES:-}" && -e "$HOME/.bashrc" ]]; then
     cp "$HOME/.bashrc" "$HOME/.bashrc_cs"
 fi
 
-### Clone and link my dotfiles
-homeshick clone pjquirk/dotfiles --quiet --batch
-homeshick link dotfiles --force
+### Copy dotfiles to home directory
+echo "Copying dotfiles to $HOME..."
+rsync -a "$DOTFILES_DIR/home/" "$HOME/"
 
-# Merge the bashrc with the pre-existing one
-if [[ -n "$CODESPACES" && -e "$HOME/.bashrc_cs" ]]; then
+# Merge the bashrc with the pre-existing one (for Codespaces)
+if [[ -n "${CODESPACES:-}" && -e "$HOME/.bashrc_cs" ]]; then
     cat "$HOME/.bashrc_cs" >> "$HOME/.bashrc"
 fi
 
-if [ -n "$BP_DEV" ]; then
+if [[ -n "${BP_DEV:-}" ]]; then
     instance_id=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
     aws ec2 describe-tags --filters "Name=resource-id,Values=${instance_id}" --query 'Tags [?Key==`custom_tags`].Value' \
         | tr -d '\n[]" ' \

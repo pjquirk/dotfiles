@@ -74,10 +74,6 @@ if [ -f "${SBP_PATH}/sbp.bash" ]; then
 fi
 
 
-##### Source homeshick (for managing dotfiles)
-source "$HOME/.homesick/repos/homeshick/homeshick.sh"
-
-
 ##### TODO Management
 source "$HOME/.config/pjquirk/todo.sh"
 
