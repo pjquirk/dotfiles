@@ -1,11 +1,11 @@
-# bashrc
+#! /bin/bash
 #
 # Use .bashrc to run commands that should run every time you launch a new shell.
 
 ##### Shortcuts for managing dotfiles
 alias dot-cd='cd ~/src/GitHub/pjquirk/dotfiles'
-alias dot-push='~/src/GitHub/pjquirk/dotfiles/script/push.sh'
-alias dot-pull='~/src/GitHub/pjquirk/dotfiles/script/pull.sh'
+alias dot-push='~/src/GitHub/pjquirk/dotfiles/script/push'
+alias dot-pull='~/src/GitHub/pjquirk/dotfiles/script/pull'
 
 ##### Setup GPG
 GPG_TTY=$(tty)
@@ -29,8 +29,10 @@ else
 fi
 
 ##### Enable git command/branch/etc tab completion
-# shellcheck disable=SC1091
-source "$HOME/.git-completion.bash"
+if [ -f "$HOME/.config/pjquirk/nvidia.bashrc" ]; then
+  # shellcheck disable=SC1091
+  source "$HOME/.git-completion.bash"
+fi
 
 ##### Start sbp:  https://github.com/brujoand/sbp
 # It's either installed via brew already, or in a bp-dev
