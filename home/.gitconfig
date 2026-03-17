@@ -3,7 +3,8 @@
 [user]
 	name = PJ Quirk
 	#email = paquirk@microsoft.com
-	email = pjquirk@github.com
+	#email = pjquirk@github.com
+	email = pquirk@nvidia.com
 [core]
 	autocrlf = false
 	preloadindex = true
@@ -26,10 +27,6 @@
 [color]
 	ui = true
 [credential]
-	helper = osxkeychain
-	helper = 
-	helper = /usr/local/share/gcm-core/git-credential-manager
-[credential "https://test-prodweu01.ghe.com"]
-	provider = github
+	helper = manager
 [credential "https://dev.azure.com"]
 	useHttpPath = true

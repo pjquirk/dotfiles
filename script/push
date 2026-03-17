@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+echo "Copying local dotfiles to repository..."
+while IFS= read -r -d '' file; do
+    rel="${file#$DOTFILES_DIR/home/}"
+    src="$HOME/$rel"
+    if [[ -f "$src" ]]; then
+        cp "$src" "$file"
+        echo "  Copied $rel"
+    else
+        echo "  Warning: $HOME/$rel not found, skipping"
+    fi
+done < <(find "$DOTFILES_DIR/home" -type f -print0)
+
+echo "Committing and pushing..."
+git -C "$DOTFILES_DIR" add -A
+if git -C "$DOTFILES_DIR" diff --cached --quiet; then
+    echo "No changes to commit."
+else
+    git -C "$DOTFILES_DIR" commit -m "Update dotfiles"
+    git -C "$DOTFILES_DIR" push
+    echo "Done."
+fi
