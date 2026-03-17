@@ -5,6 +5,8 @@
 	#email = paquirk@microsoft.com
 	#email = pjquirk@github.com
 	email = pquirk@nvidia.com
+	# For GitHub repositories, because my normal email address is private
+	#email = 4342511+pjquirk@users.noreply.github.com
 [core]
 	autocrlf = true
 	preloadindex = true
