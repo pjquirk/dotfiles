@@ -8,8 +8,10 @@ while IFS= read -r -d '' file; do
     rel="${file#$DOTFILES_DIR/home/}"
     src="$HOME/$rel"
     if [[ -f "$src" ]]; then
-        cp "$src" "$file"
-        echo "  Copied $rel"
+        if ! cmp -s "$src" "$file"; then
+            cp "$src" "$file"
+            echo "  Copied $rel"
+        fi
     else
         echo "  Warning: $HOME/$rel not found, skipping"
     fi
