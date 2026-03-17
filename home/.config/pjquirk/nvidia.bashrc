@@ -1,3 +1,6 @@
+#!/usr/env/var bash
+# shellcheck shell=bash
+#
 # Contains NVIDIA-specific aliases and functions
 
 alias ssh-p4m="sshpass -p \$(op.exe read op://nvidia/p4-master/password) ssh pquirk@p4-master"

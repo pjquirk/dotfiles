@@ -1,3 +1,6 @@
+#!/usr/env/var bash
+# shellcheck shell=bash
+#
 # Contains GitHub related aliases and functions
 
 alias newcs='gh cs create --repo github/github --devcontainer-path .devcontainer/actions-larger-runners/devcontainer.json -m xLargePremiumLinux256gb'
