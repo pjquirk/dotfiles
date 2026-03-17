@@ -6,7 +6,7 @@
 	#email = pjquirk@github.com
 	email = pquirk@nvidia.com
 [core]
-	autocrlf = false
+	autocrlf = true
 	preloadindex = true
 	fscache = true
 	editor = code --wait
@@ -19,11 +19,8 @@
 	diffdir = difftool --dir-diff --tool=winmerge
 	up = pull --rebase --prune
 	lg = log --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold cyan)<%an>%Creset' --abbrev-commit --stat
-	update-pr = push --force-with-lease origin
-	create-pr = !git push -u origin HEAD && open https://dev.azure.com/mseng/AzureDevOps/_git/AzDevNext/pullrequests?_a=mine
-    create-pr-github = !git push -u origin HEAD && open `git config --get remote.origin.url | sed -E -n 's@.*:(.*)\\.git@http://github.com/\\1@p'`
-	# what-changed = !@for /F "usebackq tokens=2* delims=: " %W in ^(`mode con ^| findstr Columns`^) do @set CONSOLE_WIDTH=%W && git diff --stat=%CONSOLE_WIDTH% master..
-	what-changed = diff --stat=170 master..
+	pr-force = push --force-with-lease origin
+	#pr-gitlab = !f() { git push -u origin HEAD; r=$(git remote get-url origin | sed -E 's|git@([^:]+):|https://\\1/|;s|\\.git$||'); b=$(git rev-parse --abbrev-ref HEAD); u=$r/-/merge_requests/new?merge_request[source_branch]=$b; if grep -qi microsoft /proc/version 2>/dev/null; then explorer.exe \"$u\"; else xdg-open \"$u\"; fi; }; f
 [color]
 	ui = true
 [credential]
