@@ -22,7 +22,7 @@ fi
 # Setup ssh-agent if it’s not already running / has no keys loaded
 if [[ -z "$SSH_AUTH_SOCK" ]] || ! ssh-add -l >/dev/null 2>&1; then
   eval "$(ssh-agent -s)" >/dev/null
-  ssh-add ~/.ssh/id_ed25519
+  ssh-add ~/.ssh/id_ed25519 >/dev/null 2>&1
 fi
 
 ##### Golang
