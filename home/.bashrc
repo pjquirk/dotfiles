@@ -76,3 +76,4 @@ if [ -f "$HOME/.config/pjquirk/nvidia.bashrc" ]; then
   # shellcheck disable=SC1091
   source "$HOME/.config/pjquirk/nvidia.bashrc"
 fi
+export PATH="$HOME/.local/bin:$PATH"
