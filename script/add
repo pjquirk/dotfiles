@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [[ $# -eq 0 ]]; then
+    echo "Usage: $(basename "$0") <file-or-dir> [...]"
+    echo "  Copies files/directories from \$HOME into the dotfiles repo under home/"
+    exit 1
+fi
+
+for arg in "$@"; do
+    # Resolve to absolute path
+    if [[ "$arg" == /* ]]; then
+        src="$arg"
+    else
+        src="$HOME/$arg"
+    fi
+
+    # Ensure the source is under $HOME
+    rel="${src#$HOME/}"
+    if [[ "$rel" == "$src" ]]; then
+        echo "Error: $src is not under \$HOME, skipping"
+        continue
+    fi
+
+    dest="$DOTFILES_DIR/home/$rel"
+
+    if [[ ! -e "$src" ]]; then
+        echo "Error: $src does not exist, skipping"
+        continue
+    fi
+
+    echo "Adding $rel..."
+    mkdir -p "$(dirname "$dest")"
+    cp -r "$src" "$dest"
+    git -C "$DOTFILES_DIR" add "$dest"
+done
+
+echo "Done. Run script/push to commit and push."

@@ -22,3 +22,12 @@ script/pull
 ```bash
 script/push
 ```
+
+**Add** — copy a new file or directory from `$HOME` into the repo and stage it with git:
+
+```bash
+script/add ~/.bashrc
+script/add ~/.config/some-app
+```
+
+Then run `script/push` to commit and push.
