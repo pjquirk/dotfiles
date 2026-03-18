@@ -6,6 +6,7 @@
 alias dot-cd='cd ~/src/GitHub/pjquirk/dotfiles'
 alias dot-push='~/src/GitHub/pjquirk/dotfiles/script/push'
 alias dot-pull='~/src/GitHub/pjquirk/dotfiles/script/pull'
+alias dot-add='~/src/GitHub/pjquirk/dotfiles/script/add'
 
 ##### Setup GPG
 GPG_TTY=$(tty)
@@ -76,4 +77,6 @@ if [ -f "$HOME/.config/pjquirk/nvidia.bashrc" ]; then
   # shellcheck disable=SC1091
   source "$HOME/.config/pjquirk/nvidia.bashrc"
 fi
+
+##### Needed for Claude CLI
 export PATH="$HOME/.local/bin:$PATH"
