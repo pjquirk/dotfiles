@@ -80,3 +80,9 @@ fi
 
 ##### Needed for Claude CLI
 export PATH="$HOME/.local/bin:$PATH"
+
+##### Needed for perforce/p4
+export PATH="$HOME/perforce:$PATH"
+
+#### Git overrides
+git config --global core.autocrlf input
