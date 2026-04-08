@@ -1,0 +1,3 @@
+[submodule "home/.claude/skills/glab"]
+	path = home/.claude/skills/glab
+	url = https://github.com/henricook/claude-glab-skill
