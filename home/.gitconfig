@@ -8,7 +8,7 @@
 	# For GitHub repositories, because my normal email address is private
 	#email = 4342511+pjquirk@users.noreply.github.com
 [core]
-	autocrlf = true
+	autocrlf = input
 	preloadindex = true
 	fscache = true
 	editor = code --wait
