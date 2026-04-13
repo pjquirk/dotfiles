@@ -1,4 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash(ls *)",
+      "Bash(git status)"
+    ]
+  },
   "model": "sonnet[1m]",
   "statusLine": {
     "type": "command",
