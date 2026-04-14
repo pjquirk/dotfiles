@@ -5,9 +5,9 @@
       "Grep",
       "Glob",
       "Bash(ls *)",
-      "Bash(git status *)",
-      "Bash(git log *)",
-      "Bash(git diff *)"
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)"
     ]
   },
   "model": "sonnet[1m]",
