@@ -5,8 +5,7 @@
 Clone the repo, then run the bootstrap script to install dependencies and copy dotfiles to your home directory:
 
 ```bash
-git clone https://github.com/pjquirk/dotfiles.git ~/dotfiles
-~/dotfiles/script/bootstrap
+git clone --recurse-submodules git@github.com:pjquirk/dotfiles.git ~/dotfiles && ~/dotfiles/script/bootstrap
 ```
 
 ## Usage
