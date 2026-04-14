@@ -3,10 +3,15 @@
 # Use .bashrc to run commands that should run every time you launch a new shell.
 
 ##### Shortcuts for managing dotfiles
-alias dot-cd='cd ~/src/GitHub/pjquirk/dotfiles'
-alias dot-push='~/src/GitHub/pjquirk/dotfiles/script/push'
-alias dot-pull='~/src/GitHub/pjquirk/dotfiles/script/pull'
-alias dot-add='~/src/GitHub/pjquirk/dotfiles/script/add'
+if [ -d "$HOME/dotfiles" ]; then
+  DOTFILES_DIR="$HOME/dotfiles"
+elif [ -d "$HOME/src/GitHub/pjquirk/dotfiles" ]; then
+  DOTFILES_DIR="$HOME/src/GitHub/pjquirk/dotfiles"
+fi
+alias dot-cd='cd "$DOTFILES_DIR"'
+alias dot-push='"$DOTFILES_DIR/script/push"'
+alias dot-pull='"$DOTFILES_DIR/script/pull"'
+alias dot-add='"$DOTFILES_DIR/script/add"'
 
 ##### Setup GPG
 GPG_TTY=$(tty)
