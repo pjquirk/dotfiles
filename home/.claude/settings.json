@@ -6,6 +6,8 @@
       "Glob",
       "Bash(ls *)",
       "Bash(git status)"
+      "Bash(git log)",
+      "Bash(git diff)"
     ]
   },
   "model": "sonnet[1m]",
