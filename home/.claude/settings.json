@@ -5,7 +5,7 @@
       "Grep",
       "Glob",
       "Bash(ls *)",
-      "Bash(git status)"
+      "Bash(git status)",
       "Bash(git log)",
       "Bash(git diff)"
     ]
