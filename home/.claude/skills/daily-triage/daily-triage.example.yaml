@@ -1,0 +1,24 @@
+# Daily Triage Skill - Personal Configuration
+#
+# Copy this file to ~/.claude/daily-triage.yaml and customize.
+#
+#   cp ~/.claude/skills/daily-triage/daily-triage.example.yaml ~/.claude/daily-triage.yaml
+#
+# All fields except notes_dir are optional.
+
+# Root of your notes directory.
+# Output files are written to: {notes_dir}/{YYYY}/{MM - Month}/{YYYY-MM-DD}.md
+# notes_dir: "/mnt/c/Users/you/Source/GitHub/you/worknotes/Nvidia"
+
+# Baseline workstreams file (auto-discovered, no config needed).
+# The skill looks for workstreams.md in this order:
+#   1. {notes_dir}/{YYYY}/{MM - Month}/workstreams.md  (current month)
+#   2. {notes_dir}/{YYYY}/{MM - Month}/workstreams.md  (prior month)
+#   3. Most recently modified workstreams.md anywhere under notes_dir
+# Create a workstreams.md in your current month folder to set project names and open TODOs.
+
+# Optional: projects to rank first in the next-steps section.
+# Without this, items are ranked by: blocking > deadline > quick-win > exploratory.
+# priorities:
+#   - "Shadow Sync"
+#   - "git2p4"
