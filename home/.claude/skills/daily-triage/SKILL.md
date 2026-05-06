@@ -51,17 +51,35 @@ Compute dates:
 ```bash
 TODAY=$(date +%Y-%m-%d)
 DAY_OF_WEEK=$(date +%u)   # 1=Mon … 7=Sun
-if [ "$DAY_OF_WEEK" = "1" ]; then
-  YESTERDAY=$(date -d "3 days ago" +%Y-%m-%d)   # Monday → last Friday
-else
-  YESTERDAY=$(date -d "1 day ago" +%Y-%m-%d)
-fi
 YEAR=$(date +%Y)
 MONTH_FOLDER=$(date +"%m - %B")   # e.g. "04 - April"
 PREV_MONTH_FOLDER=$(date -d "1 month ago" +"%m - %B")
 PREV_YEAR=$(date -d "1 month ago" +%Y)
 THREE_DAYS=$(date -d "3 days" +%Y-%m-%d)
-P4_YESTERDAY=$(date -d "$YESTERDAY" +%Y/%m/%d)
+
+# Default lookback: last business day at midnight (used when no prior triage file exists)
+if [ "$DAY_OF_WEEK" = "1" ]; then
+  SINCE=$(date -d "3 days ago" +%Y-%m-%d)   # Monday → last Friday
+else
+  SINCE=$(date -d "1 day ago" +%Y-%m-%d)
+fi
+SINCE_DATETIME="${SINCE}T00:00:00"
+
+# Override: use the mtime of the most recent prior triage file if one exists.
+# This preserves the exact time-of-day the last triage was generated, so queries
+# pick up everything that happened after that run — not just after midnight.
+# Triage files are named YYYY-MM-DD.md under notes_dir.
+LAST_TRIAGE=$(find "{notes_dir}" -name "20[0-9][0-9]-[0-9][0-9]-[0-9][0-9].md" \
+  -not -name "$TODAY.md" -not -path "*/\.*" \
+  -printf "%T@ %p\n" 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
+if [ -n "$LAST_TRIAGE" ]; then
+  SINCE=$(date -r "$LAST_TRIAGE" +%Y-%m-%d)
+  SINCE_DATETIME=$(date -r "$LAST_TRIAGE" +%Y-%m-%dT%H:%M:%S)
+fi
+
+P4_SINCE=$(date -r "${LAST_TRIAGE:-/dev/null}" +%Y/%m/%d 2>/dev/null || date -d "$SINCE" +%Y/%m/%d)
+P4_SINCE_TIME=$(date -r "${LAST_TRIAGE:-/dev/null}" +%H:%M:%S 2>/dev/null || echo "00:00:00")
 P4_TODAY=$(date +%Y/%m/%d)
 ```
 
@@ -94,14 +112,85 @@ If `$BASELINE` is non-empty, read it to extract active workstream names and any 
 
 ---
 
+### Step 0.5: Auth Pre-Flight Check
+
+Run all auth checks **before** touching any data source. A tool that is not installed should be skipped gracefully (noted in the Sources line later). Some tools are optional and skipped gracefully when unauthenticated (slack-cli, jira-cli, gdrive-cli — Claude cannot access their secrets). Other tools are required and cause a hard stop if unauthenticated — collect all failures, report them together, and do not proceed to Step 1.
+
+Run these checks in parallel:
+
+#### Entra CLIs — outlook-cli, calendar-cli, teams-cli (shared token cache)
+
+```bash
+outlook-cli auth status --json 2>/dev/null
+```
+
+Authenticated if the JSON field `"authenticated"` is `true`. One check covers all three Entra CLIs.
+
+#### slack-cli
+
+```bash
+slack-cli auth status 2>&1
+```
+
+Authenticated if output does **not** contain `"Not authenticated"`. **Optional** — if unauthenticated, skip gracefully and note "slack: auth unavailable" in Sources.
+
+#### glab (NVIDIA GitLab)
+
+```bash
+glab auth status --hostname gitlab-master.nvidia.com 2>&1
+```
+
+Authenticated if output does **not** contain `"not authenticated"` (case-insensitive). Only check `gitlab-master.nvidia.com` — not being logged into `gitlab.com` is not a failure.
+
+#### jira-cli
+
+```bash
+jira-cli auth status 2>&1
+```
+
+Authenticated if output does **not** contain `"✗ Not authenticated"`. **Optional** — if unauthenticated, skip gracefully and note "jira: auth unavailable" in Sources.
+
+#### gdrive-cli
+
+```bash
+gdrive-cli auth status 2>&1
+```
+
+Authenticated if output does **not** contain `"Not authenticated"`. **Optional** — if unauthenticated, skip gracefully and note "gdrive: auth unavailable" in Sources.
+
+#### p4
+
+```bash
+p4 login -s 2>&1
+```
+
+Authenticated if the command succeeds and output contains a ticket expiry line. If the command fails due to a **network/server error** (e.g. "Connect to server failed"), treat p4 as unavailable and skip it gracefully — that is a connectivity issue, not an auth failure.
+
+---
+
+**If any required tool failed auth**, stop here. Do not proceed to Step 1. Tell the user:
+
+```
+Auth check failed for the following tools — fix these before re-running:
+
+- outlook / calendar / teams  →  run: outlook-cli auth login
+                                  (or use the `authenticating-entra-device-code` skill)
+- glab                        →  run: glab auth login --hostname gitlab-master.nvidia.com
+- p4                          →  run: p4 login
+```
+
+Only include the tools that actually failed. Tools that were not installed should be omitted from this list (they will just be absent from the Sources line). slack-cli, jira-cli, and gdrive-cli are optional — their auth failures are not a hard stop and should not appear here.
+
+---
+
 ### Step 1: Gather Yesterday's Work Signals (run in parallel)
 
-Query all sources for the date range `$YESTERDAY` through `$TODAY`. Skip any source gracefully if it errors or requires additional setup — note it in the Sources line of the output.
+Query all sources for the date range `$SINCE` through `$TODAY`. Skip any source gracefully if it errors or requires additional setup — note it in the Sources line of the output.
 
 #### 1a. Outlook — Sent Items (strongest signal)
 
 ```bash
-outlook-cli message find --folder sent --after $YESTERDAY --limit 50 --toon
+outlook-cli message find --folder sent --after "$SINCE_DATETIME" --limit 50 --toon
 ```
 
 Each sent item = work delivered or coordination done. Extract: subject, recipients, brief topic.
@@ -109,20 +198,20 @@ Each sent item = work delivered or coordination done. Extract: subject, recipien
 #### 1b. Outlook — Inbox (inbound threads you handled)
 
 ```bash
-outlook-cli message find --after $YESTERDAY --limit 30 --toon
+outlook-cli message find --after "$SINCE_DATETIME" --limit 30 --toon
 ```
 
 Look for threads that likely resolved or where you made commitments.
 
-#### 1c. Calendar — Meetings Attended Yesterday
+#### 1c. Calendar — Meetings Attended Since Last Triage
 
 ```bash
-calendar-cli find --after $YESTERDAY --before $TODAY --toon
+calendar-cli find --after "$SINCE_DATETIME" --before $TODAY --toon
 ```
 
 Attended meetings = discussions, decisions, or reviews. Note meeting names and any outcome context visible in the body preview.
 
-#### 1d. Teams — Chat Messages from Yesterday
+#### 1d. Teams — Chat Messages Since Last Triage
 
 ```bash
 teams-cli chat list --json
@@ -134,12 +223,12 @@ For each non-trivial chat (skip onboarding, recurring HR noise), read recent mes
 teams-cli chat read <chat-id> --limit 20 --json
 ```
 
-Filter messages to those created on `$YESTERDAY`. Look for: messages you sent, decisions made, docs shared, action items. Collect message URLs where available.
+Filter messages to those created on or after `$SINCE`. Look for: messages you sent, decisions made, docs shared, action items. Collect message URLs where available.
 
-#### 1e. Slack — Messages Sent Yesterday
+#### 1e. Slack — Messages Sent Since Last Triage
 
 ```bash
-slack-cli message search --query "from:me after:$YESTERDAY" --limit 20
+slack-cli message search --query "from:me after:$SINCE_DATETIME" --limit 20
 ```
 
 Extract: channels/DMs you were active in, topics discussed, commitments made.
@@ -151,12 +240,12 @@ glab mr list --author @me --output json
 glab mr list --reviewer @me --output json
 ```
 
-Filter for items with `updated_at >= $YESTERDAY`. Note: MR title, URL, status changes (opened/merged/approved/commented), linked issue numbers.
+Filter for items with `updated_at >= $SINCE_DATETIME`. Note: MR title, URL, status changes (opened/merged/approved/commented), linked issue numbers.
 
 #### 1g. Jira — Issues Updated Yesterday (skip if auth unavailable)
 
 ```bash
-jira-cli issue find "assignee = currentUser() AND updated >= \"$YESTERDAY\" ORDER BY updated DESC" --limit 20 --toon
+jira-cli issue find "assignee = currentUser() AND updated >= \"$SINCE_DATETIME\" ORDER BY updated DESC" --limit 20 --toon
 ```
 
 If this returns an auth error, skip and note "Jira: auth required" in sources.
@@ -164,7 +253,7 @@ If this returns an auth error, skip and note "Jira: auth required" in sources.
 #### 1h. Perforce — Changelists Submitted (skip if p4 unavailable)
 
 ```bash
-p4 changes -u $USER -s submitted @$P4_YESTERDAY,@$P4_TODAY
+p4 changes -u $USER -s submitted @${P4_SINCE}:${P4_SINCE_TIME},@$P4_TODAY
 ```
 
 Extract CL numbers and descriptions. Link each as `https://p4hw-swarm.nvidia.com/changes/CLNUM`.
@@ -180,8 +269,15 @@ Extract doc names and URLs for files created or significantly edited.
 #### 1j. Local Notes — Recently Modified Files (work diary)
 
 ```bash
-touch -t $(date -d "$YESTERDAY 23:59" +%Y%m%d%H%M) $TMPDIR/wrapup-ref
-find "{notes_dir}" -name "*.md" -newer $TMPDIR/wrapup-ref -not -path "*/\.*" 2>/dev/null
+# Use the triage file itself as the reference when available — exact mtime, no rounding.
+# Fall back to a synthetic reference file at $SINCE midnight when there is no prior triage.
+if [ -n "$LAST_TRIAGE" ]; then
+  REF="$LAST_TRIAGE"
+else
+  touch -t $(date -d "$SINCE 00:00" +%Y%m%d%H%M) $TMPDIR/wrapup-ref
+  REF=$TMPDIR/wrapup-ref
+fi
+find "{notes_dir}" -name "*.md" -newer "$REF" -not -path "*/\.*" 2>/dev/null
 ```
 
 These files are a work diary — they often contain the richest record of what was actually done. **Read each one** and extract:
@@ -194,7 +290,7 @@ Treat this source as equally authoritative as email and Teams for the wrap-up se
 
 ---
 
-### Step 2: Synthesize Yesterday's Work by Project
+### Step 2: Synthesize Recent Work by Project
 
 Group all signals from Step 1 into projects/workstreams. Use workstream names from `$BASELINE` if found; otherwise infer from signal content (email subjects, MR titles, Teams chat names).
 
@@ -250,7 +346,7 @@ From Step 1g results (if available): issues in "In Progress", "To Do", or "Open"
 Quick Starts are tasks completable in < 5 minutes. Limit to 5–8 items.
 
 Candidates (in priority order):
-1. Unread/unreplied emails from the last 48 h needing a short ack or 1–2 sentence reply
+1. Unread/unreplied emails since `$SINCE` needing a short ack or 1–2 sentence reply
 2. Slack or Teams DMs where you haven't responded
 3. Calendar invites not yet accepted or declined
 4. Short scheduling tasks ("send calendar invite to X for sync re: Y")
@@ -290,7 +386,7 @@ Path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
 ```markdown
 # {TODAY} — Daily Brief
 
-**Wrap-up window:** {YESTERDAY}
+**Wrap-up window:** {SINCE_DATETIME} → now
 **Sources:** outlook (sent N, inbox N), calendar (N meetings), teams, slack, gitlab[, jira][, p4][, gdrive]
 
 ---
