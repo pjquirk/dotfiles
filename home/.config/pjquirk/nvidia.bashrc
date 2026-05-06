@@ -22,6 +22,10 @@ EOF
     rm -f "$tmpfile"
 }
 
+function ssh-worknotes {
+    tsh login --proxy=nv-prd-it.teleport.sh --auth=entra --user=pquirk
+    ssh pquirk@omni-lfn-4tpjf.nv-prd-it.teleport.sh
+}
 
 alias ssh-rocky8="sshpass -p \$(op.exe read 'op://nvidia/Windows Login/password') ssh pquirk@pquirk-rocky8 -t 'bash --login'"
 alias ssh-ansiblesandbox="sshpass -p \$(op.exe read 'op://nvidia/Windows Login/password') ssh pquirk@pquirk-ansiblesandbox -t 'bash --login'"
