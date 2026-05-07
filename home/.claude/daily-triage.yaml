@@ -1,4 +1,8 @@
-notes_dir: "/mnt/c/Users/pquirk/Source/GitHub/pjquirk/worknotes/Nvidia"
+notes_dirs: 
+  # Laptop (WSL)
+  - "/mnt/c/Users/pquirk/Source/GitHub/pjquirk/worknotes/Nvidia"
+  # Omnistation
+  - "/home/pquirk/source/GitHub/pjquirk/worknotes/Nvidia"
 
 priorities:
   - "Shadow Sync"

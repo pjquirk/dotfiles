@@ -8,6 +8,15 @@
 
 # Root of your notes directory.
 # Output files are written to: {notes_dir}/{YYYY}/{MM - Month}/{YYYY-MM-DD}.md
+#
+# Use notes_dirs (list) to specify multiple candidates checked in order — the first
+# path that exists on disk is used. Useful when notes live in different locations on
+# different machines. If none of the listed paths exist the skill stops immediately.
+# notes_dirs:
+#   - "/mnt/c/Users/you/Source/GitHub/you/worknotes/Nvidia"
+#   - "/home/you/worknotes/Nvidia"
+#
+# Use notes_dir (scalar) for a single path (backwards-compatible).
 # notes_dir: "/mnt/c/Users/you/Source/GitHub/you/worknotes/Nvidia"
 
 # Baseline workstreams file (auto-discovered, no config needed).

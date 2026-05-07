@@ -43,8 +43,13 @@ Use when the user asks to:
 ### Step 0: Read Config and Compute Dates
 
 Read `~/.claude/daily-triage.yaml`. Extract:
-- `notes_dir` — root of the notes directory (ask the user if not set)
+- `notes_dirs` — ordered list of candidate notes directories; use the first one that exists on disk. Falls back to `notes_dir` (scalar) for backwards compatibility. If neither is set, or none of the listed paths exist, **stop immediately** — do not ask the user for the location.
 - `priorities` — optional list of priority project names
+
+Resolve `notes_dir` (the active notes directory) as follows:
+1. If `notes_dirs` is a non-empty list, iterate in order and use the first path that exists (`test -d`). If none exist, stop and tell the user: `No notes directory found — set notes_dirs in ~/.claude/daily-triage.yaml.`
+2. Otherwise if `notes_dir` (scalar) is set, check that it exists (`test -d`). If it does not exist, stop with the same message.
+3. If neither key is present in the config file (or the file is absent), stop with the same message.
 
 Compute dates:
 
