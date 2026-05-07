@@ -5,7 +5,7 @@
 
 alias ssh-p4m="sshpass -p \$(op.exe read op://nvidia/p4-master/password) ssh pquirk@p4-master"
 function ssh-p4m-to() {
-    sshpass -p $(op.exe read op://nvidia/p4-master/password) ssh -A -t pquirk@p4-master ssh -A pquirk@"$1"
+    sshpass -p $(op.exe read op://nvidia/p4-master/password) ssh -A -J pquirk@p4-master pquirk@"$1"
 }
 
 function ssh-p4m-root {
