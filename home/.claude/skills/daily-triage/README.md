@@ -63,6 +63,8 @@ The skill queries these sources and skips any that are unavailable:
 │ Google Drive  │ gdrive-cli   │ Docs modified                                     │
 ├───────────────┼──────────────┼───────────────────────────────────────────────────┤
 │ Local notes   │ find         │ Recently edited markdown files                    │
+├───────────────┼──────────────┼───────────────────────────────────────────────────┤
+│ Claude convos │ find (jsonl) │ Context only — enriches other signals, no standalone bullets │
 └───────────────┴──────────────┴───────────────────────────────────────────────────┘
 
 Example Output

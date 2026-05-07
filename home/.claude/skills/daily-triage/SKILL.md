@@ -114,7 +114,7 @@ If `$BASELINE` is non-empty, read it to extract active workstream names and any 
 
 ### Step 0.5: Auth Pre-Flight Check
 
-Run all auth checks **before** touching any data source. A tool that is not installed should be skipped gracefully (noted in the Sources line later). Some tools are optional and skipped gracefully when unauthenticated (slack-cli, jira-cli, gdrive-cli — Claude cannot access their secrets). Other tools are required and cause a hard stop if unauthenticated — collect all failures, report them together, and do not proceed to Step 1.
+Run all auth checks **before** touching any data source. A tool that is not installed should be skipped gracefully (noted in the Sources line later). Some tools are optional and skipped gracefully when unauthenticated (slack-cli, jira-cli, gdrive-cli, p4 — Claude cannot access their secrets or they may be network-unavailable). Other tools are required and cause a hard stop if unauthenticated — collect all failures, report them together, and do not proceed to Step 1.
 
 Run these checks in parallel:
 
@@ -164,7 +164,7 @@ Authenticated if output does **not** contain `"Not authenticated"`. **Optional**
 p4 login -s 2>&1
 ```
 
-Authenticated if the command succeeds and output contains a ticket expiry line. If the command fails due to a **network/server error** (e.g. "Connect to server failed"), treat p4 as unavailable and skip it gracefully — that is a connectivity issue, not an auth failure.
+**Optional** — skip gracefully and note "p4: unavailable" in Sources if: the command fails due to a network/server error (e.g. "Connect to server failed"), the ticket is expired, or p4 is not installed. Only treat it as available if the command succeeds and output contains a ticket expiry line.
 
 ---
 
@@ -176,10 +176,9 @@ Auth check failed for the following tools — fix these before re-running:
 - outlook / calendar / teams  →  run: outlook-cli auth login
                                   (or use the `authenticating-entra-device-code` skill)
 - glab                        →  run: glab auth login --hostname gitlab-master.nvidia.com
-- p4                          →  run: p4 login
 ```
 
-Only include the tools that actually failed. Tools that were not installed should be omitted from this list (they will just be absent from the Sources line). slack-cli, jira-cli, and gdrive-cli are optional — their auth failures are not a hard stop and should not appear here.
+Only include the tools that actually failed. Tools that were not installed should be omitted from this list (they will just be absent from the Sources line). slack-cli, jira-cli, gdrive-cli, and p4 are optional — their auth failures are not a hard stop and should not appear here.
 
 ---
 
@@ -236,8 +235,8 @@ Extract: channels/DMs you were active in, topics discussed, commitments made.
 #### 1f. GitLab — MR Activity
 
 ```bash
-glab mr list --author @me --output json
-glab mr list --reviewer @me --output json
+GITLAB_HOST=gitlab-master.nvidia.com glab mr list --author @me
+GITLAB_HOST=gitlab-master.nvidia.com glab mr list --reviewer @me
 ```
 
 Filter for items with `updated_at >= $SINCE_DATETIME`. Note: MR title, URL, status changes (opened/merged/approved/commented), linked issue numbers.
@@ -287,6 +286,22 @@ These files are a work diary — they often contain the richest record of what w
 - Any URLs or references added (bugs, MRs, docs)
 
 Treat this source as equally authoritative as email and Teams for the wrap-up section.
+
+#### 1k. Claude Conversations — Additional Context Only
+
+Find JSONL transcript files modified since `$SINCE` across all Claude project directories:
+
+```bash
+find ~/.claude/projects -name "*.jsonl" -newer "$REF" -not -path "*/\.*" 2>/dev/null
+```
+
+For each file found, extract user and assistant turns to surface:
+- Bugs, MR numbers, or ticket IDs discussed
+- Decisions made or conclusions reached
+- Commands run and their outcomes
+- Names of people or systems mentioned
+
+**Critical constraint:** Do NOT produce standalone wrap-up bullets sourced solely from Claude conversations. Use this context only to enrich or add detail to signals already found via other sources (email, calendar, Teams, GitLab, notes). For example: if an email mentions bug 6142383 and a Claude conversation shows you investigated it and found the root cause, add that detail to the email-sourced bullet — don't create a new bullet just from the conversation.
 
 ---
 
@@ -387,7 +402,7 @@ Path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
 # {TODAY} — Daily Brief
 
 **Wrap-up window:** {SINCE_DATETIME} → now
-**Sources:** outlook (sent N, inbox N), calendar (N meetings), teams, slack, gitlab[, jira][, p4][, gdrive]
+**Sources:** outlook (sent N, inbox N), calendar (N meetings), teams, slack, gitlab[, jira][, p4][, gdrive][, claude transcripts]
 
 ---
 
@@ -447,4 +462,4 @@ Path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
 
 ## Privacy
 
-This skill reads sent email, calendar events, Teams and Slack messages, GitLab MR data, Jira issues, Perforce changelists, Google Drive file metadata, and local notes files. All access goes through authenticated CLIs (outlook-cli, calendar-cli, teams-cli, slack-cli, glab, jira-cli, p4, gdrive-cli); this skill does not bypass access controls. Output is saved locally to your configured `notes_dir`. Review before sharing — the output may aggregate content from multiple sensitive sources.
+This skill reads sent email, calendar events, Teams and Slack messages, GitLab MR data, Jira issues, Perforce changelists, Google Drive file metadata, local notes files, and Claude conversation transcripts stored under `~/.claude/projects/`. All external access goes through authenticated CLIs (outlook-cli, calendar-cli, teams-cli, slack-cli, glab, jira-cli, p4, gdrive-cli); this skill does not bypass access controls. Output is saved locally to your configured `notes_dir`. Review before sharing — the output may aggregate content from multiple sensitive sources.
