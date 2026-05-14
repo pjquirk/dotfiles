@@ -29,3 +29,16 @@
 	helper = manager
 [credential "https://dev.azure.com"]
 	useHttpPath = true
+[credential "https://github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gitlab-master.nvidia.com"]
+	provider = gitlab
+	gitLabDevClientId = 90ec2c59cee8696727c51aeefad5b9934ddaa76fd4c2da94b449fc27c87ff360
+	gitLabDevClientSecret = gloas-f67649f97a679a24bab22e80de34fbf032d8534826723279da21314717ccfd10
+[credential "https://gitlab.example.com"]
+	gitLabDevClientId = 90ec2c59cee8696727c51aeefad5b9934ddaa76fd4c2da94b449fc27c87ff360
+	gitLabDevClientSecret = gloas-f67649f97a679a24bab22e80de34fbf032d8534826723279da21314717ccfd10
