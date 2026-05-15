@@ -171,6 +171,14 @@ p4 login -s 2>&1
 
 **Optional** — skip gracefully and note "p4: unavailable" in Sources if: the command fails due to a network/server error (e.g. "Connect to server failed"), the ticket is expired, or p4 is not installed. Only treat it as available if the command succeeds and output contains a ticket expiry line.
 
+#### nvbugs-cli
+
+```bash
+nvbugs-cli auth status 2>&1
+```
+
+**Optional** — skip gracefully and note "nvbugs: auth unavailable" in Sources if not authenticated or not installed. Authenticated if output contains `"authenticated": true` or does **not** contain `"Authenticated: false"`.
+
 ---
 
 **If any required tool failed auth**, stop here. Do not proceed to Step 1. Tell the user:
@@ -308,6 +316,36 @@ For each file found, extract user and assistant turns to surface:
 
 **Critical constraint:** Do NOT produce standalone wrap-up bullets sourced solely from Claude conversations. Use this context only to enrich or add detail to signals already found via other sources (email, calendar, Teams, GitLab, notes). For example: if an email mentions bug 6142383 and a Claude conversation shows you investigated it and found the root cause, add that detail to the email-sourced bullet — don't create a new bullet just from the conversation.
 
+#### 1l. NVBugs — Bug Activity (skip if nvbugs-cli unavailable)
+
+Determine the current user's full name for NVBugs person-name searches:
+
+```bash
+NVBUGS_FULLNAME=$(git config user.name 2>/dev/null)
+```
+
+Run the following queries in parallel:
+
+```bash
+# Bugs where I am the assigned engineer
+nvbugs-cli search bugs --engineer "$NVBUGS_FULLNAME" --toon 2>&1
+
+# Bugs where I am action-required-by (ARB) — someone is waiting on me
+nvbugs-cli search bugs --arb "$NVBUGS_FULLNAME" --toon 2>&1
+```
+
+From the results, identify bugs whose `ModifiedDate` falls on or after `$SINCE` — these are bugs with recent activity. For each such bug, note: bug ID, synopsis, status (`BugAction`), and priority.
+
+**Bugs where I've recently commented:** nvbugs does not expose a global "bugs I commented on" query. Instead, collect any NVBugs bug IDs surfaced by other sources in Step 1 (emails, Teams messages, notes files, Claude transcripts) and fetch their current state:
+
+```bash
+nvbugs-cli bug get <bug-id> --toon 2>&1
+```
+
+Fetch each unique bug ID found in other signals that is not already returned by the engineer/ARB queries above. This captures bugs I'm actively discussing but not formally assigned to.
+
+Link all bugs as `https://nvbugspro.nvidia.com/bug/BUGID`.
+
 ---
 
 ### Step 2: Synthesize Recent Work by Project
@@ -359,6 +397,13 @@ From Step 1f results: MRs in "opened" or "review_requested" state that need atte
 
 From Step 1g results (if available): issues in "In Progress", "To Do", or "Open" state.
 
+#### 3f. Open NVBugs
+
+From Step 1l results (if available):
+- Bugs assigned to me with status "HW - Open - To fix" or "HW - Open - To verify" — I need to take action or verify a fix.
+- Bugs where I'm ARB — someone is waiting on me specifically.
+- Bug IDs from other signals (email, Teams, notes) fetched in Step 1l — include their current status so I know what needs attention.
+
 ---
 
 ### Step 4: Identify Quick Starts
@@ -393,6 +438,8 @@ Prioritization within each project:
 
 If `priorities` is configured, boost those project sections to the top of the Next Steps section.
 
+For each open NVBug from Step 3f, add it to the relevant project's Next Steps as a `- [ ]` checkbox. Format as: `- [ ] Bug NNNNNN: {synopsis} — {status} [{priority}]` with a footnote link. Group bugs by project/workstream where possible; put unclassified bugs under a **NVBugs** subsection. Bugs in "To verify" status should be flagged as needing explicit follow-up.
+
 Also emit a **Scheduling Needed** sub-section for syncs that need to be booked:
 - Can it piggyback on an existing calendar meeting?
 - Does it need a new slot?
@@ -407,7 +454,7 @@ Path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
 # {TODAY} — Daily Brief
 
 **Wrap-up window:** {SINCE_DATETIME} → now
-**Sources:** outlook (sent N, inbox N), calendar (N meetings), teams, slack, gitlab[, jira][, p4][, gdrive][, claude transcripts]
+**Sources:** outlook (sent N, inbox N), calendar (N meetings), teams, slack, gitlab[, jira][, p4][, gdrive][, nvbugs (N assigned, N arb)][, claude transcripts]
 
 ---
 
@@ -467,4 +514,4 @@ Path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
 
 ## Privacy
 
-This skill reads sent email, calendar events, Teams and Slack messages, GitLab MR data, Jira issues, Perforce changelists, Google Drive file metadata, local notes files, and Claude conversation transcripts stored under `~/.claude/projects/`. All external access goes through authenticated CLIs (outlook-cli, calendar-cli, teams-cli, slack-cli, glab, jira-cli, p4, gdrive-cli); this skill does not bypass access controls. Output is saved locally to your configured `notes_dir`. Review before sharing — the output may aggregate content from multiple sensitive sources.
+This skill reads sent email, calendar events, Teams and Slack messages, GitLab MR data, Jira issues, Perforce changelists, Google Drive file metadata, NVBugs bug data, local notes files, and Claude conversation transcripts stored under `~/.claude/projects/`. All external access goes through authenticated CLIs (outlook-cli, calendar-cli, teams-cli, slack-cli, glab, jira-cli, p4, gdrive-cli, nvbugs-cli); this skill does not bypass access controls. Output is saved locally to your configured `notes_dir`. Review before sharing — the output may aggregate content from multiple sensitive sources.
