@@ -70,7 +70,7 @@ else
 fi
 SINCE_DATETIME="${SINCE}T00:00:00"
 
-# Override: use the mtime of the most recent prior triage file if one exists.
+# Override: use the creation time of the most recent prior triage file if one exists.
 # This preserves the exact time-of-day the last triage was generated, so queries
 # pick up everything that happened after that run — not just after midnight.
 # Triage files are named YYYY-MM-DD.md under notes_dir.
@@ -79,12 +79,24 @@ LAST_TRIAGE=$(find "{notes_dir}" -name "20[0-9][0-9]-[0-9][0-9]-[0-9][0-9].md" \
   -printf "%T@ %p\n" 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
 
 if [ -n "$LAST_TRIAGE" ]; then
-  SINCE=$(date -r "$LAST_TRIAGE" +%Y-%m-%d)
-  SINCE_DATETIME=$(date -r "$LAST_TRIAGE" +%Y-%m-%dT%H:%M:%S)
+  # Use birth time (creation time), not mtime — the user edits the triage file
+  # throughout the day, advancing mtime and shrinking the next day's lookback window.
+  BIRTH=$(stat --format="%W" "$LAST_TRIAGE" 2>/dev/null)
+  if [ -n "$BIRTH" ] && [ "$BIRTH" != "0" ]; then
+    SINCE=$(date -d "@$BIRTH" +%Y-%m-%d)
+    SINCE_DATETIME=$(date -d "@$BIRTH" +%Y-%m-%dT%H:%M:%S)
+  else
+    # Fallback: mtime if filesystem doesn't support birth time
+    SINCE=$(date -r "$LAST_TRIAGE" +%Y-%m-%d)
+    SINCE_DATETIME=$(date -r "$LAST_TRIAGE" +%Y-%m-%dT%H:%M:%S)
+  fi
 fi
 
-P4_SINCE=$(date -r "${LAST_TRIAGE:-/dev/null}" +%Y/%m/%d 2>/dev/null || date -d "$SINCE" +%Y/%m/%d)
-P4_SINCE_TIME=$(date -r "${LAST_TRIAGE:-/dev/null}" +%H:%M:%S 2>/dev/null || echo "00:00:00")
+# ET display version — server runs in UTC; always show Eastern to the user.
+SINCE_DATETIME_ET=$(TZ="America/New_York" date -d "$SINCE_DATETIME" +"%Y-%m-%dT%H:%M:%S")
+
+P4_SINCE=$(date -d "$SINCE_DATETIME" +%Y/%m/%d 2>/dev/null || date -d "$SINCE" +%Y/%m/%d)
+P4_SINCE_TIME=$(date -d "$SINCE_DATETIME" +%H:%M:%S 2>/dev/null || echo "00:00:00")
 P4_TODAY=$(date +%Y/%m/%d)
 ```
 
@@ -281,10 +293,15 @@ Extract doc names and URLs for files created or significantly edited.
 #### 1j. Local Notes — Recently Modified Files (work diary)
 
 ```bash
-# Use the triage file itself as the reference when available — exact mtime, no rounding.
-# Fall back to a synthetic reference file at $SINCE midnight when there is no prior triage.
+# Use a reference file stamped at birth time of the last triage — consistent with
+# SINCE_DATETIME. Fall back to a synthetic reference at $SINCE midnight if no prior triage.
 if [ -n "$LAST_TRIAGE" ]; then
-  REF="$LAST_TRIAGE"
+  BIRTH=$(stat --format="%W" "$LAST_TRIAGE" 2>/dev/null)
+  if [ -n "$BIRTH" ] && [ "$BIRTH" != "0" ]; then
+    touch -d "@$BIRTH" /tmp/triage-ref && REF=/tmp/triage-ref
+  else
+    REF="$LAST_TRIAGE"
+  fi
 else
   touch -t $(date -d "$SINCE 00:00" +%Y%m%d%H%M) $TMPDIR/wrapup-ref
   REF=$TMPDIR/wrapup-ref
@@ -453,7 +470,7 @@ Path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
 ```markdown
 # {TODAY} — Daily Brief
 
-**Wrap-up window:** {SINCE_DATETIME} → now
+**Wrap-up window:** {SINCE_DATETIME_ET} ET → now
 **Sources:** outlook (sent N, inbox N), calendar (N meetings), teams, slack, gitlab[, jira][, p4][, gdrive][, nvbugs (N assigned, N arb)][, claude transcripts]
 
 ---
