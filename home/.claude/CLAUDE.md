@@ -11,9 +11,9 @@
 
 - Use `glab` (not `gh`) for all GitLab MR operations.
 - Commit email must be `pquirk@nvidia.com`.
-- MR titles follow the format: `<Short description> (est. review time N minutes)`.
+- MR titles should be a easy-to-read summary of the changes in the branch.
 - Target branch for MRs is `main` unless told otherwise.
-- Always push the source branch before creating an MR (`--push` flag or prior `git push`).
+- Always push the source branch to the remote and set the local branch to track the remote before creating an MR (`--push` flag or prior `git push --set-upstream origin <branch name>`).
 
 ## Communication Style
 
@@ -28,6 +28,5 @@
 
 ## Workflow Defaults
 
-- When creating MRs, include an estimated review time in the title.
 - Check for a `CLAUDE.md` in any project before starting work — project rules override these personal defaults.
 - Do not push to `main` directly; always use a branch + MR.
