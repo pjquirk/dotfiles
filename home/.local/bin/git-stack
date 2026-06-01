@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SUBCMD="${1:-}"
+GIT_DIR=$(git rev-parse --git-dir)
+STACKS_DIR="$GIT_DIR/stacks"
+
+prefix() {
+    git config --get stack.prefix 2>/dev/null \
+        || git config user.email | cut -d@ -f1
+}
+
+stack_file() { echo "$STACKS_DIR/$1"; }
+
+cmd_new() {
+    local stackname="$1"
+    mkdir -p "$STACKS_DIR"
+    local f; f=$(stack_file "$stackname")
+    [[ -f "$f" ]] && { echo "Stack '$stackname' already exists" >&2; exit 1; }
+    git symbolic-ref --short HEAD > "$f"
+    echo "Created stack '$stackname' rooted at $(cat "$f")"
+}
+
+cmd_push() {
+    local stackname="$1" branchname="$2"
+    local f; f=$(stack_file "$stackname")
+    [[ -f "$f" ]] || { echo "No stack '$stackname'. Run: git stack new $stackname" >&2; exit 1; }
+
+    local top; top=$(tail -n1 "$f")
+    local head; head=$(git symbolic-ref --short HEAD)
+    if [[ "$head" != "$top" ]]; then
+        echo "Warning: HEAD is '$head' but stack top is '$top'. Branching from HEAD." >&2
+    fi
+
+    local full; full="$(prefix)/${stackname}-${branchname}"
+    git checkout -b "$full"
+    echo "$full" >> "$f"
+}
+
+cmd_restack() {
+    local stackname="$1"
+    local f; f=$(stack_file "$stackname")
+    mapfile -t stack < <(grep -v '^#\|^$' "$f")
+
+    declare -A old_tips
+    for b in "${stack[@]}"; do old_tips["$b"]=$(git rev-parse "$b"); done
+
+    local prev=""
+    for b in "${stack[@]}"; do
+        if [[ -n "$prev" ]]; then
+            echo "Rebasing $b onto $prev ..."
+            git rebase --onto "$prev" "${old_tips[$prev]}" "$b"
+        fi
+        prev="$b"
+    done
+    echo "Restack complete."
+}
+
+cmd_close() {
+    local stackname="$1" target="$2"
+    local f; f=$(stack_file "$stackname")
+    mapfile -t stack < <(grep -v '^#\|^$' "$f")
+
+    local idx=-1
+    for i in "${!stack[@]}"; do
+        [[ "${stack[$i]}" == "$target" ]] && idx=$i && break
+    done
+
+    if [[ $idx -lt 0 ]]; then
+        echo "Branch '$target' not found in stack '$stackname'" >&2; exit 1
+    fi
+    if [[ $idx -eq 0 ]]; then
+        echo "Cannot close the base of the stack" >&2; exit 1
+    fi
+
+    local parent="${stack[$((idx-1))]}"
+    local old_target_tip; old_target_tip=$(git rev-parse "$target")
+
+    declare -A old_tips
+    for (( i=idx+1; i<${#stack[@]}; i++ )); do
+        old_tips["${stack[$i]}"]=$(git rev-parse "${stack[$i]}")
+    done
+
+    local prev="$parent" upstream="$old_target_tip"
+    for (( i=idx+1; i<${#stack[@]}; i++ )); do
+        local b="${stack[$i]}"
+        echo "Rebasing $b onto $prev ..."
+        git rebase --onto "$prev" "$upstream" "$b"
+        upstream="${old_tips[$b]}"
+        prev="$b"
+    done
+
+    printf '%s\n' "${stack[@]}" | grep -v "^${target}$" > "$f"
+    echo "Closed '$target'. Stack updated (branch not deleted — do that manually when ready)."
+}
+
+cmd_show() {
+    local stackname="$1"
+    local f; f=$(stack_file "$stackname")
+    [[ -f "$f" ]] || { echo "No stack '$stackname'" >&2; exit 1; }
+    local i=0
+    while IFS= read -r branch; do
+        [[ -z "$branch" || "$branch" == \#* ]] && continue
+        local summary; summary=$(git log --oneline -1 "$branch" 2>/dev/null || echo "(branch not found)")
+        if [[ $i -eq 0 ]]; then
+            printf "  (base) %s  %s\n" "$branch" "$summary"
+        else
+            printf "  [%d]    %s  %s\n" "$i" "$branch" "$summary"
+        fi
+        (( i++ )) || true
+    done < "$f"
+}
+
+cmd_list() {
+    if [[ -n "${1:-}" ]]; then
+        local f; f=$(stack_file "$1")
+        [[ -f "$f" ]] || { echo "No stack '$1'" >&2; exit 1; }
+        grep -v '^#\|^$' "$f"
+    else
+        if [[ ! -d "$STACKS_DIR" ]] || [[ -z "$(ls -A "$STACKS_DIR" 2>/dev/null)" ]]; then
+            echo "(no stacks)" >&2
+            exit 0
+        fi
+        ls "$STACKS_DIR"
+    fi
+}
+
+usage_list() { echo "Usage: git stack list [stackname]
+  With no argument, list all stack names. With a stack name, list the
+  branches in that stack (bare names, one per line). Use 'show' for an
+  annotated view with commit summaries."; }
+
+usage_new() { echo "Usage: git stack new <stackname>
+  Init a new stack rooted at the current branch. Records the current branch
+  as the base in .git/stacks/<stackname>. No branch is created."; }
+
+usage_push() { echo "Usage: git stack push <stackname> <branchname>
+  Create a new branch named <prefix>/<stackname>-<branchname> from HEAD and
+  append it to the stack. Warns if HEAD is not at the current stack top."; }
+
+usage_restack() { echo "Usage: git stack restack <stackname>
+  Rebase every branch in the stack onto its (possibly moved) parent using
+  a two-pass approach: all tips are snapshotted before any rebase runs,
+  so moving an earlier branch does not corrupt the upstream calculation for
+  later ones."; }
+
+usage_close() { echo "Usage: git stack close <stackname> <branchname>
+  Remove a merged branch from the stack and rebase everything above it onto
+  its former parent. Uses the full branch name as it appears in the stack
+  file. Does not delete the branch — do that separately once you are sure."; }
+
+usage_show() { echo "Usage: git stack show <stackname>
+  Print each branch in the stack with its most recent commit summary."; }
+
+usage_all() {
+    cat <<'EOF'
+Usage: git stack <subcommand> [args...]
+
+Subcommands:
+  new     <stackname>              Init a stack rooted at the current branch
+  push    <stackname> <branchname> Create <prefix>/<stackname>-<branchname>, add to stack
+  restack <stackname>              Rebase all branches onto their (possibly moved) parent
+  close   <stackname> <branchname> Remove a merged branch; rebase anything above it
+  show    <stackname>              Print stack with most recent commit per branch
+  list    [stackname]              List all stacks, or branches within a named stack
+  help    [subcommand]             Show this help, or help for a specific subcommand
+
+Branch prefix defaults to the local part of user.email. Override:
+  git config stack.prefix yourname
+
+Run "git stack help <subcommand>" for details on any command.
+EOF
+}
+
+case "$SUBCMD" in
+    new)
+        [[ "${2:-}" == "-h" || "${2:-}" == "--help" ]] && { usage_new; exit 0; }
+        cmd_new "${2:?$(usage_new)}"
+        ;;
+    push)
+        [[ "${2:-}" == "-h" || "${2:-}" == "--help" ]] && { usage_push; exit 0; }
+        cmd_push "${2:?$(usage_push)}" "${3:?$(usage_push)}"
+        ;;
+    restack)
+        [[ "${2:-}" == "-h" || "${2:-}" == "--help" ]] && { usage_restack; exit 0; }
+        cmd_restack "${2:?$(usage_restack)}"
+        ;;
+    close)
+        [[ "${2:-}" == "-h" || "${2:-}" == "--help" ]] && { usage_close; exit 0; }
+        cmd_close "${2:?$(usage_close)}" "${3:?$(usage_close)}"
+        ;;
+    show)
+        [[ "${2:-}" == "-h" || "${2:-}" == "--help" ]] && { usage_show; exit 0; }
+        cmd_show "${2:?$(usage_show)}"
+        ;;
+    list)
+        [[ "${2:-}" == "-h" || "${2:-}" == "--help" ]] && { usage_list; exit 0; }
+        cmd_list "${2:-}"
+        ;;
+    help|-h|--help)
+        case "${2:-}" in
+            new)     usage_new ;;
+            push)    usage_push ;;
+            restack) usage_restack ;;
+            close)   usage_close ;;
+            show)    usage_show ;;
+            list)    usage_list ;;
+            *)       usage_all ;;
+        esac
+        ;;
+    *)
+        usage_all >&2
+        exit 1
+        ;;
+esac
