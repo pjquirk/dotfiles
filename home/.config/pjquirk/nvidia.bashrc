@@ -30,3 +30,8 @@ function ssh-worknotes {
 alias ssh-rocky8="sshpass -p \$(op.exe read 'op://nvidia/Windows Login/password') ssh pquirk@pquirk-rocky8 -t 'bash --login'"
 alias ssh-ansiblesandbox="sshpass -p \$(op.exe read 'op://nvidia/Windows Login/password') ssh pquirk@pquirk-ansiblesandbox -t 'bash --login'"
 alias ssh-ansiblesandbox2="sshpass -p \$(op.exe read 'op://nvidia/Windows Login/password') ssh pquirk@pquirk-ansiblesandbox2 -t 'bash --login'"
+
+if [ -f "$HOME/.config/pjquirk/local.bashrc" ]; then
+  # shellcheck disable=SC1091
+  source "$HOME/.config/pjquirk/local.bashrc"
+fi
