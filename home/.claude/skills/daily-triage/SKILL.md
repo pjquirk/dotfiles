@@ -233,7 +233,73 @@ Look for threads that likely resolved or where you made commitments.
 calendar-cli find --after "$SINCE_DATETIME" --before $TODAY --toon
 ```
 
-Attended meetings = discussions, decisions, or reviews. Note meeting names and any outcome context visible in the body preview.
+Attended meetings = discussions, decisions, or reviews. Note meeting names, event IDs, and any outcome context visible in the body preview. Preserve the event IDs — they are required for Step 1c.ii.
+
+#### 1c.ii. Meeting Transcripts — Create Notes
+
+For each calendar event from Step 1c, attempt to fetch and summarize its transcript, then write a meeting note file into the current month's directory.
+
+**Folder mapping:** Read workstream names from `$BASELINE`. Each workstream maps to a subdirectory:
+`{notes_dir}/{YEAR}/{MONTH_FOLDER}/{workstream-name}/`
+
+For meetings that don't match any workstream, use `Meetings` as the folder name.
+
+**For each calendar event (run in parallel where feasible):**
+
+1. Attempt to read the transcript:
+
+```bash
+transcript-cli read --event-id <event-id> --toon 2>/dev/null
+```
+
+2. If no transcript is returned (transcription was not enabled or recording unavailable), skip this meeting silently.
+
+3. Sanitize the meeting title for use as a filename — strip path-unsafe characters and trim to 100 characters:
+
+```bash
+SAFE_TITLE=$(echo "$MEETING_TITLE" | tr -d '/:*?"<>|\\' | sed 's/  */ /g' | cut -c1-100)
+```
+
+4. Map to a workstream: read the meeting title, attendees, and transcript content, then pick the workstream from `$BASELINE` whose name and open items best match the meeting topic. If no workstream clearly fits, use `Meetings`.
+
+5. Determine the output path and skip if the file already exists (avoid overwriting notes you may have annotated):
+
+```bash
+MEETING_DIR="{notes_dir}/{YEAR}/{MONTH_FOLDER}/{workstream-or-Meetings}"
+mkdir -p "$MEETING_DIR"
+MEETING_FILE="$MEETING_DIR/Meeting - $SAFE_TITLE.md"
+# Skip if already exists
+[ -f "$MEETING_FILE" ] && continue
+```
+
+6. Write the meeting note file:
+
+```markdown
+# {Meeting Title}
+
+**Date:** {date of meeting}
+**Attendees:** {comma-separated list of attendees}
+
+## Summary
+
+{2–4 sentence summary of what was discussed and why it matters}
+
+## Key Points
+
+- {key discussion point or decision}
+- ...
+
+## Action Items
+
+- [ ] {action item} — {owner if mentioned}
+- ...
+```
+
+Keep the Summary to 2–4 sentences. Extract action items from explicit commitments in the transcript ("I'll", "we'll", "action item", "follow up", "by end of week"). Omit the Action Items section if there are none.
+
+After processing all meetings, record:
+- A list of created file paths (for use in Step 2 and the Sources line)
+- Count of meetings with transcripts vs. without
 
 #### 1d. Teams — Chat Messages Since Last Triage
 
@@ -369,6 +435,8 @@ Link all bugs as `https://nvbugspro.nvidia.com/bug/BUGID`.
 
 Group all signals from Step 1 into projects/workstreams. Use workstream names from `$BASELINE` if found; otherwise infer from signal content (email subjects, MR titles, Teams chat names).
 
+Also incorporate meeting note files created in Step 1c.ii — they are a direct record of what was discussed. Pull concrete outcomes, decisions, and named collaborators from the meeting summaries into the appropriate project's wrap-up bullets. Link to the meeting note file using a footnote (relative path from `notes_dir`).
+
 For each project, write 2–5 bullets in **past tense**:
 - Concrete outcomes: "Debugged SSH alias issue with Shawn", "Merged MR for Ansible playbook"
 - Credit collaborators by name
@@ -471,7 +539,7 @@ Path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
 # {TODAY} — Daily Brief
 
 **Wrap-up window:** {SINCE_DATETIME_ET} ET → now
-**Sources:** outlook (sent N, inbox N), calendar (N meetings), teams, slack, gitlab[, jira][, p4][, gdrive][, nvbugs (N assigned, N arb)][, claude transcripts]
+**Sources:** outlook (sent N, inbox N), calendar (N meetings, N transcripts), teams, slack, gitlab[, jira][, p4][, gdrive][, nvbugs (N assigned, N arb)][, claude transcripts]
 
 ---
 
