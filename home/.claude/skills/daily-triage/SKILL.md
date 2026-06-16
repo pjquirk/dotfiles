@@ -314,12 +314,47 @@ Extract: channels/DMs you were active in, topics discussed, commitments made.
 
 #### 1f. GitLab — MR Activity
 
+Run all three list queries in parallel:
+
 ```bash
-GITLAB_HOST=gitlab-master.nvidia.com glab mr list --author @me
-GITLAB_HOST=gitlab-master.nvidia.com glab mr list --reviewer @me
+# Open MRs I authored
+GITLAB_HOST=gitlab-master.nvidia.com glab mr list --author @me --state opened -F json
+
+# Open MRs where I am a reviewer
+GITLAB_HOST=gitlab-master.nvidia.com glab mr list --reviewer @me --state opened -F json
+
+# Recently merged authored MRs (for Yesterday's Work)
+GITLAB_HOST=gitlab-master.nvidia.com glab mr list --author @me --state merged -F json
 ```
 
-Filter for items with `updated_at >= $SINCE_DATETIME`. Note: MR title, URL, status changes (opened/merged/approved/commented), linked issue numbers.
+For each open authored MR, fetch full detail (run in parallel):
+
+```bash
+GITLAB_HOST=gitlab-master.nvidia.com glab mr view <number> -F json
+```
+
+From each `glab mr view` result, extract: `draft`, `pipeline.status` (success / failed / running / pending), `approved_by` (list), `reviewers` (list), `user_notes_count`, `updated_at`.
+
+**Classify each authored MR** into exactly one state:
+
+| State | Condition |
+|---|---|
+| **draft** | `draft: true` |
+| **needs reviewer assigned** | not draft, `reviewers` is empty |
+| **awaiting review** | reviewers assigned, no approvals, `updated_at < $SINCE_DATETIME` |
+| **has feedback** | reviewer left comments or requested changes since last triage |
+| **approved — ready to merge** | at least one approval, CI passing or no pipeline |
+| **CI failing** | `pipeline.status == "failed"` |
+| **merge blocked** | approved but explicitly blocked (deploy freeze, dependency, merge conflict) |
+
+**Classify each reviewer MR** into one state:
+
+| State | Condition |
+|---|---|
+| **needs my review** | I have not yet approved or left a comment |
+| **reviewed — awaiting author** | I have commented or approved; author has not responded |
+
+Note the MR number, title, URL, workstream (infer from repo name or MR title), days open, and assigned reviewers for use in Steps 2 and 5.
 
 #### 1g. Jira — Issues Updated Yesterday (skip if auth unavailable)
 
@@ -329,7 +364,7 @@ jira-cli issue find "assignee = currentUser() AND updated >= \"$SINCE_DATETIME\"
 
 If this returns an auth error, skip and note "Jira: auth required" in sources.
 
-#### 1i. Google Drive — Docs Edited Yesterday (skip if gdrive-cli unavailable)
+#### 1h. Google Drive — Docs Edited Yesterday (skip if gdrive-cli unavailable)
 
 ```bash
 gdrive-cli search --query "modified:yesterday" --limit 10 --output json
@@ -458,7 +493,19 @@ From `$BASELINE` (if found) and notes modified in Step 1j, extract all open `- [
 
 #### 3d. Open GitLab MRs
 
-From Step 1f results: MRs in "opened" or "review_requested" state that need attention.
+From Step 1f classification results. For each open authored MR, map state to action:
+
+| MR state | Action needed |
+|---|---|
+| draft | none — still in progress |
+| needs reviewer assigned | assign reviewers |
+| awaiting review | ping reviewers if stalled (no activity in 2+ days) |
+| has feedback | respond to reviewer comments |
+| approved — ready to merge | merge (or note what's blocking) |
+| CI failing | fix pipeline |
+| merge blocked | note the blocker explicitly |
+
+For each reviewer MR in "needs my review" state, it's a direct action item regardless of age.
 
 #### 3e. Open Jira Issues
 
@@ -511,6 +558,20 @@ If `priorities` is configured, boost those project sections to the top of the Ne
 
 For each open NVBug from Step 3f, add it to the relevant project's Next Steps as a `- [ ]` checkbox. Format as: `- [ ] Bug NNNNNN: {synopsis} — {status} [{priority}]` with a footnote link. Group bugs by project/workstream where possible; put unclassified bugs under a **NVBugs** subsection. Bugs in "To verify" status should be flagged as needing explicit follow-up.
 
+Emit a **GitLab MRs** subsection listing all open MRs. Place it before the workstream sections so it's always visible at the top of Today's Next Steps. Omit MRs in `draft` or `reviewed — awaiting author` states (no action needed from you). Format:
+
+```
+### GitLab MRs
+
+**Authored:**
+- [ ] !NNN: {title} — {state label}[^N]
+
+**Reviewing:**
+- [ ] !NNN: {title} ({author}) — needs review[^N]
+```
+
+State labels for authored MRs: `awaiting review — N days` / `has feedback` / `ready to merge` / `CI failing` / `blocked: {reason}` / `assign reviewers`. Omit the "Authored:" or "Reviewing:" sub-heading if that group is empty. Omit the entire GitLab MRs section if there are no actionable MRs.
+
 Also emit a **Scheduling Needed** sub-section for syncs that need to be booked:
 - Can it piggyback on an existing calendar meeting?
 - Does it need a new slot?
@@ -535,9 +596,17 @@ Path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
 
 ## Today's Next Steps
 
+### GitLab MRs
+
+**Authored:**
+- [ ] !NNN: {title} — {state label}[^1]
+
+**Reviewing:**
+- [ ] !NNN: {title} ({author}) — needs review[^2]
+
 ### {Project 1}
 
-- [ ] {action item}[^1]
+- [ ] {action item}[^3]
 - [ ] {action item}
 
 ### {Project 2}
