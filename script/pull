@@ -5,6 +5,7 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "Pulling latest changes from remote..."
 git -C "$DOTFILES_DIR" pull
+git submodule update --remote --recursive
 
 echo "Copying dotfiles to $HOME..."
 rsync -a "$DOTFILES_DIR/home/" "$HOME/"
