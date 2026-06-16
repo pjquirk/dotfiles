@@ -95,9 +95,6 @@ fi
 # ET display version — server runs in UTC; always show Eastern to the user.
 SINCE_DATETIME_ET=$(TZ="America/New_York" date -d "$SINCE_DATETIME" +"%Y-%m-%dT%H:%M:%S")
 
-P4_SINCE=$(date -d "$SINCE_DATETIME" +%Y/%m/%d 2>/dev/null || date -d "$SINCE" +%Y/%m/%d)
-P4_SINCE_TIME=$(date -d "$SINCE_DATETIME" +%H:%M:%S 2>/dev/null || echo "00:00:00")
-P4_TODAY=$(date +%Y/%m/%d)
 ```
 
 Output path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
@@ -131,7 +128,7 @@ If `$BASELINE` is non-empty, read it to extract active workstream names and any 
 
 ### Step 0.5: Auth Pre-Flight Check
 
-Run all auth checks **before** touching any data source. A tool that is not installed should be skipped gracefully (noted in the Sources line later). Some tools are optional and skipped gracefully when unauthenticated (slack-cli, jira-cli, gdrive-cli, p4 — Claude cannot access their secrets or they may be network-unavailable). Other tools are required and cause a hard stop if unauthenticated — collect all failures, report them together, and do not proceed to Step 1.
+Run all auth checks **before** touching any data source. A tool that is not installed should be skipped gracefully (noted in the Sources line later). Some tools are optional and skipped gracefully when unauthenticated (slack-cli, jira-cli, gdrive-cli — Claude cannot access their secrets or they may be network-unavailable). Other tools are required and cause a hard stop if unauthenticated — collect all failures, report them together, and do not proceed to Step 1.
 
 Run these checks in parallel:
 
@@ -175,14 +172,6 @@ gdrive-cli auth status 2>&1
 
 Authenticated if output does **not** contain `"Not authenticated"`. **Optional** — if unauthenticated, skip gracefully and note "gdrive: auth unavailable" in Sources.
 
-#### p4
-
-```bash
-p4 login -s 2>&1
-```
-
-**Optional** — skip gracefully and note "p4: unavailable" in Sources if: the command fails due to a network/server error (e.g. "Connect to server failed"), the ticket is expired, or p4 is not installed. Only treat it as available if the command succeeds and output contains a ticket expiry line.
-
 #### nvbugs-cli
 
 ```bash
@@ -203,7 +192,7 @@ Auth check failed for the following tools — fix these before re-running:
 - glab                        →  run: glab auth login --hostname gitlab-master.nvidia.com
 ```
 
-Only include the tools that actually failed. Tools that were not installed should be omitted from this list (they will just be absent from the Sources line). slack-cli, jira-cli, gdrive-cli, and p4 are optional — their auth failures are not a hard stop and should not appear here.
+Only include the tools that actually failed. Tools that were not installed should be omitted from this list (they will just be absent from the Sources line). slack-cli, jira-cli, and gdrive-cli are optional — their auth failures are not a hard stop and should not appear here.
 
 ---
 
@@ -340,14 +329,6 @@ jira-cli issue find "assignee = currentUser() AND updated >= \"$SINCE_DATETIME\"
 
 If this returns an auth error, skip and note "Jira: auth required" in sources.
 
-#### 1h. Perforce — Changelists Submitted (skip if p4 unavailable)
-
-```bash
-p4 changes -u $USER -s submitted @${P4_SINCE}:${P4_SINCE_TIME},@$P4_TODAY
-```
-
-Extract CL numbers and descriptions. Link each as `https://p4hw-swarm.nvidia.com/changes/CLNUM`.
-
 #### 1i. Google Drive — Docs Edited Yesterday (skip if gdrive-cli unavailable)
 
 ```bash
@@ -369,8 +350,8 @@ if [ -n "$LAST_TRIAGE" ]; then
     REF="$LAST_TRIAGE"
   fi
 else
-  touch -t $(date -d "$SINCE 00:00" +%Y%m%d%H%M) $TMPDIR/wrapup-ref
-  REF=$TMPDIR/wrapup-ref
+  touch -t $(date -d "$SINCE 00:00" +%Y%m%d%H%M) /tmp/triage-ref
+  REF=/tmp/triage-ref
 fi
 find "{notes_dir}" -name "*.md" -newer "$REF" -not -path "*/\.*" 2>/dev/null
 ```
@@ -385,10 +366,11 @@ Treat this source as equally authoritative as email and Teams for the wrap-up se
 
 #### 1k. Claude Conversations — Additional Context Only
 
-Find JSONL transcript files modified since `$SINCE` across all Claude project directories:
+Find JSONL transcript files modified since `$SINCE` across all Claude project directories, capped at the 30 most recently modified:
 
 ```bash
-find ~/.claude/projects -name "*.jsonl" -newer "$REF" -not -path "*/\.*" 2>/dev/null
+find ~/.claude/projects -name "*.jsonl" -newer "$REF" -not -path "*/\.*" \
+  -printf "%T@ %p\n" 2>/dev/null | sort -rn | head -30 | cut -d' ' -f2-
 ```
 
 For each file found, extract user and assistant turns to surface:
@@ -504,6 +486,8 @@ Candidates (in priority order):
 
 If an item requires more than 5 minutes of thought, move it to Next Steps instead.
 
+**Dual-listing is intentional:** a Quick Start item may be the immediate 2-minute action (e.g., "ping Oleg re: Bug 6142383") while the same bug also appears in Next Steps carrying its full context and status. The Quick Start is the action; Next Steps is the work. Do not collapse them.
+
 ---
 
 ### Step 5: Synthesize Today's Next Steps by Project
@@ -512,14 +496,16 @@ Use signals from Step 3 plus any open items from `$BASELINE` (if found).
 
 For each project:
 - List open actions as `- [ ]` checkboxes, ≤ 15 words each
-- Note discussions needed: who, why, urgency (this week / soon / when convenient)
 - Use footnotes for MR URLs, Jira ticket links, bug numbers
 
-Prioritization within each project:
+**Stale item ordering:** Before writing a workstream's list, compare its open `- [ ]` items against the prior triage file (`$LAST_TRIAGE`). Items that appeared as unchecked in that file and remain unchecked now are "carried over." Place carried-over items at the *bottom* of their workstream's list, after new or recently progressed items. Do not create a separate section — position alone signals freshness.
+
+Prioritization within each project (top to bottom, then carried-over items last):
 1. Blocking others — someone is waiting on you
 2. Time-sensitive — known deadline or meeting today
 3. Quick wins — < 30 min, clears an open thread
 4. Exploratory — no external pressure
+5. Carried over from prior triage (unchanged, no recent activity)
 
 If `priorities` is configured, boost those project sections to the top of the Next Steps section.
 
@@ -538,9 +524,6 @@ Path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
 ```markdown
 # {TODAY} — Daily Brief
 
-**Wrap-up window:** {SINCE_DATETIME_ET} ET → now
-**Sources:** outlook (sent N, inbox N), calendar (N meetings, N transcripts), teams, slack, gitlab[, jira][, p4][, gdrive][, nvbugs (N assigned, N arb)][, claude transcripts]
-
 ---
 
 ## Quick Starts
@@ -550,28 +533,12 @@ Path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
 
 ---
 
-## Yesterday's Work
-
-### {Project 1}
-
-- {What was done — one sentence}[^1]
-- {Another thing done}[^2][^3]
-
-### {Project 2}
-
-- ...
-
----
-
 ## Today's Next Steps
 
 ### {Project 1}
 
-- [ ] {action item}[^4]
+- [ ] {action item}[^1]
 - [ ] {action item}
-
-**Discussions needed:**
-- Sync with {person} re: {topic} — urgency: {this week / soon / when convenient}
 
 ### {Project 2}
 
@@ -583,20 +550,65 @@ Path: `{notes_dir}/{YEAR}/{MONTH_FOLDER}/{TODAY}.md`
 
 ---
 
+## Yesterday's Work
+
+### {Project 1}
+
+- {What was done — one sentence}[^2]
+- {Another thing done}[^3][^4]
+
+### {Project 2}
+
+- ...
+
+---
+
+**Wrap-up window:** {SINCE_DATETIME_ET} ET → now
+**Sources:** outlook (sent N, inbox N), calendar (N meetings, N transcripts), teams, slack, gitlab[, jira][, gdrive][, nvbugs (N assigned, N arb)][, claude transcripts]
+
 [^1]: {URL}
 [^2]: {URL}
+
+---
+
+## End of Day
+
+### What I Got Done Today
+
+<!-- fill in at end of day -->
+
+### Thoughts for Tomorrow
+
+<!-- fill in at end of day -->
 ```
 
 **Format rules:**
 - Past tense in the wrap-up; imperative in next steps
 - Footnotes for all external links; keep prose clean
-- Quick Starts appear before everything else
+- Section order: Quick Starts → Today's Next Steps → Yesterday's Work → Wrap-up window + Sources → Footnotes → End of Day
 - Max 5 bullets per project in the wrap-up; merge minor items if needed
 - Omit entire sections (including the project header) if there are no signals for that project
 - No redundancy: if something is done, it does not appear in next steps
+- The **End of Day** section is intentionally left empty — it is a fill-in-later journal prompt, not generated content
+
+---
+
+### Step 7: Update workstreams.md
+
+Update the current month's `workstreams.md` (`$CURRENT_WS`) to reflect what was done and what remains open. **Only run this step if `$BASELINE` equals `$CURRENT_WS`** — do not write to a prior-month file.
+
+Make three passes, then write the updated file:
+
+1. **Mark completed items.** For each `- [ ]` item in workstreams.md, check whether it matches something in Yesterday's Work (Step 2) that was completed — an item explicitly checked (`- [x]`) in a notes file, an MR described as merged, or a bug described as closed. If matched, change `- [ ]` to `- [x]`. Match on artifact identifiers (bug ID, MR number) or close text similarity; do not require exact string match.
+
+2. **Add new open items.** For each `- [ ]` item generated in Today's Next Steps (Step 5) that references a concrete artifact (bug ID, MR number, named task), check whether a matching item already exists in workstreams.md. If not present, append it to the end of the appropriate workstream section.
+
+3. **Rewrite "Next:" lines.** For each workstream section, rewrite the trailing `Next:` line (or add one if absent) to reflect the 2–3 highest-priority open items remaining for that workstream, drawn from Today's Next Steps.
+
+Keep all existing content — only change `[ ]` → `[x]` for completed items, append missing open items, and update `Next:` lines. Never remove or reorder existing items.
 
 ---
 
 ## Privacy
 
-This skill reads sent email, calendar events, Teams and Slack messages, GitLab MR data, Jira issues, Perforce changelists, Google Drive file metadata, NVBugs bug data, local notes files, and Claude conversation transcripts stored under `~/.claude/projects/`. All external access goes through authenticated CLIs (outlook-cli, calendar-cli, teams-cli, slack-cli, glab, jira-cli, p4, gdrive-cli, nvbugs-cli); this skill does not bypass access controls. Output is saved locally to your configured `notes_dir`. Review before sharing — the output may aggregate content from multiple sensitive sources.
+This skill reads sent email, calendar events, Teams and Slack messages, GitLab MR data, Jira issues, Google Drive file metadata, NVBugs bug data, local notes files, and Claude conversation transcripts stored under `~/.claude/projects/`. All external access goes through authenticated CLIs (outlook-cli, calendar-cli, teams-cli, slack-cli, glab, jira-cli, gdrive-cli, nvbugs-cli); this skill does not bypass access controls. Output is saved locally to your configured `notes_dir`. Review before sharing — the output may aggregate content from multiple sensitive sources.
