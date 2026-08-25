@@ -77,17 +77,17 @@ if [ -n "$CODESPACES" ]; then
   export GIT_EDITOR="vim"
 fi
 
+##### Needed for Claude CLI, ssh-tui, etc
+export PATH="$HOME/.local/bin:$PATH"
+
+##### Needed for perforce/p4
+export PATH="$HOME/perforce:$PATH"
+
 ##### Company-specific environment variables and aliases
 if [ -f "$HOME/.config/pjquirk/nvidia.bashrc" ]; then
   # shellcheck disable=SC1091
   source "$HOME/.config/pjquirk/nvidia.bashrc"
 fi
-
-##### Needed for Claude CLI
-export PATH="$HOME/.local/bin:$PATH"
-
-##### Needed for perforce/p4
-export PATH="$HOME/perforce:$PATH"
 
 #### Git overrides
 git config --global core.autocrlf input
