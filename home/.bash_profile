@@ -49,3 +49,5 @@ fi
 
 ##### Add JetBrains tools, user binaries, etc. to the path
 # export PATH="$PATH:$HOME/bin"
+
+. "$HOME/.local/bin/env"

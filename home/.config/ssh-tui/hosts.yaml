@@ -1,0 +1,67 @@
+groups:
+  - name: "P4"
+    hosts:
+      - description: p4-master (p4admin)
+        target:
+          host: p4-master
+          user: pquirk
+          op_item: "op://nvidia/p4-master/password"
+          become_user: [root, p4admin]
+
+  - name: "PSE Shadow Sync"
+    hosts:
+      - description: "PSE Shadow Sync Primary"
+        jumpbox:
+          host: p4-master
+          user: pquirk
+        target:
+          host: dc2-p4-master-07
+          op_item: "op://nvidia/p4-master/password"
+          become_user: [root]
+
+      - description: "PSE Shadow Sync Secondary"
+        jumpbox:
+          host: p4-master
+          user: pquirk
+        target:
+          host: dc2-p4-master-08
+          op_item: "op://nvidia/p4-master/password"
+          become_user: [root]
+
+  - name: "PSE"
+    hosts:
+      - description: "Primary"
+        target:
+          host: p4-icmse-01
+          user: pquirk
+          op_item: "op://NVIDIA/p4-master/password"
+      - description: "Primary (p4admin)"
+        target:
+          host: p4-icmse-01
+          user: pquirk
+          op_item: "op://NVIDIA/p4-master/password"
+          become_user: [root, p4admin]
+
+  - name: "Ansible Runners"
+    hosts:
+      - description: "dc2-scm-ansible-02 (root)"
+        target:
+          host: dc2-scm-ansible-02
+          user: pquirk
+          op_item: "op://NVIDIA/p4-master/password"
+          become_user: [root]
+      - description: "dc2-scm-ansible-02 (p4admin)"
+        target:
+          host: dc2-scm-ansible-02
+          user: pquirk
+          op_item: "op://NVIDIA/p4-master/password"
+          become_user: [root, p4admin]
+
+  - name: "Dev"
+    hosts:
+      - description: "Xterm (farm)"
+        target:
+          host: dc2-container-xterm-026.prd.it.nvidia.com
+          port: 5857
+          user: pquirk
+          op_item: "op://NVIDIA/7i6ezjbntl5xbxm5ethm2wauve/passwd"

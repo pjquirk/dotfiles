@@ -1,0 +1,617 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "textual>=0.47",
+#   "pexpect>=4.8",
+#   "pyyaml>=6.0",
+# ]
+# ///
+
+from __future__ import annotations
+
+import sys
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+DEBUG = "--debug" in sys.argv
+
+import os
+import pexpect
+import re
+import shutil
+import signal
+import termios
+import yaml
+from textual.app import App, ComposeResult, ScreenResultType
+from textual.binding import Binding
+from textual.containers import Vertical, VerticalScroll
+from textual.screen import ModalScreen
+from textual.widgets import Button, Footer, Header, Input, Label, ListItem, ListView, Static
+
+
+CONFIG_PATH = Path.home() / ".config" / "ssh-tui" / "hosts.yaml"
+SESSION_DIR = Path.home() / ".local" / "share" / "ssh-tui" / "sessions"
+_ANSI_RE = re.compile(r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+_OP = shutil.which("op") or shutil.which("op.exe")
+if _OP is None:
+    sys.exit("Neither 'op' nor 'op.exe' found in PATH. Install the 1Password CLI.")
+
+
+@dataclass
+class HopConfig:
+    host: str
+    user: Optional[str] = None      # required on the first hop; later hops carry over the escalated user
+    op_item: Optional[str] = None   # required if become_user is non-empty
+    become_user: list[str] = None   # e.g. [root, p4admin]: root → sudo su -, others → su -
+    port: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if self.become_user is None:
+            self.become_user = []
+
+
+@dataclass
+class HostEntry:
+    target: HopConfig
+    jumpbox: Optional[HopConfig] = None
+    description: Optional[str] = None
+
+    @property
+    def display_name(self) -> str:
+        if self.description:
+            return self.description
+        if self.jumpbox:
+            return f"{self.jumpbox.host} → {self.target.host}"
+        return self.target.host
+
+    @property
+    def detail_text(self) -> str:
+        lines = []
+        for label, hop in [("jumpbox", self.jumpbox), ("target", self.target)]:
+            if hop is None:
+                continue
+            user_str = f"{hop.user}@" if hop.user else ""
+            lines.append(f"{label}:   {user_str}{hop.host}")
+            if hop.become_user:
+                lines.append(f"escalate: {' → '.join(hop.become_user)}")
+        return "\n".join(lines)
+
+
+def _parse_hop(raw: dict) -> HopConfig:
+    become = raw.get("become_user", [])
+    return HopConfig(
+        host=raw["host"],
+        user=raw.get("user"),
+        op_item=raw.get("op_item"),
+        become_user=[become] if isinstance(become, str) else list(become),
+        port=raw.get("port"),
+    )
+
+
+@dataclass
+class HostGroup:
+    name: str
+    entries: list[HostEntry]
+
+
+def _parse_host(h: dict) -> HostEntry:
+    if "target" not in h:
+        raise ValueError(f"Host entry missing required 'target' key: {h}")
+    return HostEntry(
+        target=_parse_hop(h["target"]),
+        jumpbox=_parse_hop(h["jumpbox"]) if "jumpbox" in h else None,
+        description=h.get("description"),
+    )
+
+
+def load_config(path: Path) -> list[HostGroup]:
+    with open(path) as f:
+        raw = yaml.safe_load(f)
+
+    return [
+        HostGroup(
+            name=g["name"],
+            entries=[_parse_host(h) for h in g.get("hosts", [])],
+        )
+        for g in raw.get("groups", [])
+    ]
+
+
+def fetch_secret(op_item: str) -> str:
+    result = subprocess.run([_OP, "read", op_item], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"1Password read failed: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def _hop_escalation(hop: HopConfig, inner: Optional[str]) -> tuple[str, int]:
+    """Return (remote_cmd, n_passwords) for one hop's escalation wrapping `inner`."""
+    has_root = any(u.lower() == "root" for u in hop.become_user)
+    su_users = [u for u in hop.become_user if u.lower() != "root"]
+    if len(su_users) > 1:
+        raise ValueError(f"Only one non-root become_user step supported (got {su_users})")
+
+    n_passwords = (1 if has_root else 0) + len(su_users)
+    cmd = inner
+
+    if su_users:
+        cmd = f'su - {su_users[0]} -c "{cmd}"' if cmd else f"su - {su_users[0]}"
+    if has_root:
+        cmd = f"sudo su - -c '{cmd}'" if cmd else "sudo su -"
+
+    return cmd, n_passwords
+
+
+def _build_connection(entry: HostEntry) -> tuple[str, str, list[str]]:
+    """Return (user@host for outer SSH, remote_cmd, ordered op_items for passwords).
+
+    Builds the chain from the inside out: target escalation first, then wrapped
+    in an SSH call, then wrapped in jumpbox escalation.
+    """
+    jb, tgt = entry.jumpbox, entry.target
+
+    def hop_op_items(hop: HopConfig, n_escalation: int) -> list[str]:
+        # One slot for SSH login password (consumed only if the server requires it),
+        # plus one per escalation step. The reactive loop skips unused slots.
+        if not hop.op_item:
+            return []
+        return [hop.op_item] * (1 + n_escalation)
+
+    tgt_local, n_tgt = _hop_escalation(tgt, None)
+    tgt_op_items = hop_op_items(tgt, n_tgt)
+
+    if jb is None:
+        # Single hop: SSH directly to target.
+        return f"{tgt.user}@{tgt.host}", tgt_local, tgt_op_items
+
+    # Two hops: build SSH-to-target command, then wrap with jumpbox escalation.
+    tgt_port_arg = f"-p {tgt.port} " if tgt.port else ""
+    ssh_to_tgt = f"ssh -t {tgt_port_arg}{tgt.host} \"{tgt_local}\"" if tgt_local else f"ssh {tgt_port_arg}{tgt.host}"
+    remote_cmd, n_jb = _hop_escalation(jb, ssh_to_tgt)
+    if remote_cmd is None:
+        remote_cmd = ssh_to_tgt
+
+    return f"{jb.user}@{jb.host}", remote_cmd, hop_op_items(jb, n_jb) + tgt_op_items
+
+
+class SessionLogger:
+    """Writes session output to a file, stripping ANSI escape sequences."""
+
+    def __init__(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._f = open(path, "w", encoding="utf-8")
+
+    def write(self, data: str) -> None:
+        self._f.write(_ANSI_RE.sub("", data))
+        self._f.flush()
+
+    def flush(self) -> None:
+        self._f.flush()
+
+    def close(self) -> None:
+        self._f.close()
+
+
+def connect(entry: HostEntry) -> None:
+    first_hop = entry.jumpbox or entry.target
+    print(f"\nConnecting to {first_hop.host}...", flush=True)
+
+    destination, remote_cmd, op_items = _build_connection(entry)
+
+    if DEBUG:
+        cmd_str = " ".join(["ssh", "-t", destination, f'"{remote_cmd}"'] if remote_cmd else ["ssh", destination])
+        ts = os.get_terminal_size()
+        print(f"[debug] command:  {cmd_str}", flush=True)
+        print(f"[debug] termsize: {ts.columns}x{ts.lines}", flush=True)
+
+    passwords = [fetch_secret(item) for item in op_items]
+
+
+    port_args = ["-p", str(first_hop.port)] if first_hop.port else []
+    ssh_args = port_args + (["-t", destination, remote_cmd] if remote_cmd else [destination])
+    # Binary mode (no encoding) so interact() passes raw bytes through unchanged.
+    # Text mode mangles \r\n sequences, breaking readline's line-wrap cursor movement.
+    child = pexpect.spawn(
+        "ssh", ssh_args,
+        timeout=60,
+    )
+    child.logfile_read = sys.stdout.buffer
+
+    # Match PTY size to the real terminal and keep it in sync on resize.
+    ts = os.get_terminal_size()
+    child.setwinsize(ts.lines, ts.columns)
+    signal.signal(signal.SIGWINCH, lambda *_: (lambda t: child.setwinsize(t.lines, t.columns))(os.get_terminal_size()))
+
+    # Feed passwords reactively: send the next one on each prompt, stop on shell prompt.
+    # We don't require all passwords to be consumed — root can su without a password,
+    # so fewer prompts than expected is normal.
+    pw_idx = 0
+    while True:
+        idx = child.expect(
+            [rb"\(yes/no\)", b"[Pp]assword", rb"[#$>%] ", pexpect.TIMEOUT, pexpect.EOF],
+            timeout=30,
+        )
+        if idx == 0:
+            child.sendline(b"yes")
+        elif idx == 1:
+            if pw_idx >= len(passwords):
+                sys.exit("Unexpected password prompt — add op_item to the relevant hop in hosts.yaml")
+            child.logfile_read = None
+            child.sendline(passwords[pw_idx].encode())
+            child.logfile_read = sys.stdout.buffer
+            pw_idx += 1
+        elif idx == 2:
+            child.sendline(b"")  # prompt was consumed by expect(); nudge shell to reprint it
+            break
+        elif idx == 3:
+            if pw_idx > 0:
+                break  # credentials sent, unusual prompt char — hand off to interact()
+            sys.exit(f"Timed out waiting for {first_hop.host}")
+        else:
+            sys.exit(f"Connection to {first_hop.host} closed unexpectedly")
+
+    from datetime import datetime
+    host_label = entry.target.host.replace(".", "_")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = SESSION_DIR / host_label / f"{timestamp}.log"
+    logger = SessionLogger(log_path)
+
+    # Re-send terminal size after escalation chain completes so the final shell
+    # gets the correct dimensions (the initial setwinsize fires too early).
+    ts = os.get_terminal_size()
+    child.setwinsize(ts.lines, ts.columns)
+
+    child.logfile_read = None
+    print(f"Connected. Logging to {log_path}. Type 'exit' to disconnect.\n", flush=True)
+    fd = sys.stdin.fileno()
+    saved_term = termios.tcgetattr(fd)
+    try:
+        child.interact(output_filter=lambda data: (logger.write(data.decode("utf-8", errors="replace")), data)[1])
+    except pexpect.EOF:
+        pass
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, saved_term)
+        logger.close()
+
+
+def save_host(group_name: str, entry_raw: dict) -> None:
+    with open(CONFIG_PATH) as f:
+        data = yaml.safe_load(f) or {}
+    groups = data.setdefault("groups", [])
+    for g in groups:
+        if g["name"] == group_name:
+            g.setdefault("hosts", []).append(entry_raw)
+            break
+    else:
+        groups.append({"name": group_name, "hosts": [entry_raw]})
+    with open(CONFIG_PATH, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+
+
+class AddHostScreen(ModalScreen):
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", priority=True),
+        Binding("ctrl+s", "save", "Save"),
+    ]
+    CSS = """
+    AddHostScreen {
+        align: center middle;
+    }
+    #dialog {
+        width: 72;
+        height: auto;
+        max-height: 90vh;
+        border: solid $accent;
+        background: $surface;
+        padding: 0 2 1 2;
+    }
+    #dialog-title {
+        text-style: bold;
+        color: $accent;
+        padding: 1 0 0 0;
+    }
+    .section {
+        color: $text-muted;
+        text-style: bold;
+        margin-top: 1;
+    }
+    .field-label {
+        color: $text-muted;
+        margin-top: 1;
+    }
+    #hints {
+        margin-top: 1;
+        color: $text-muted;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Label("Add Host", id="dialog-title")
+            yield Label("Group [required]", classes="field-label")
+            yield Input(placeholder="e.g. Production", id="f-group")
+            yield Label("Description [optional]", classes="field-label")
+            yield Input(placeholder="Human-readable name", id="f-description")
+
+            yield Label("── Target ──────────────────────────────────────────────", classes="section")
+            yield Label("Host [required]", classes="field-label")
+            yield Input(placeholder="hostname or IP", id="f-target-host")
+            yield Label("User [optional]", classes="field-label")
+            yield Input(placeholder="pquirk", id="f-target-user")
+            yield Label("Port [optional]", classes="field-label")
+            yield Input(placeholder="22", id="f-target-port")
+            yield Label("1Password item [optional]", classes="field-label")
+            yield Input(placeholder="op://vault/item/field", id="f-target-op-item")
+            yield Label("become_user [optional, comma-separated]", classes="field-label")
+            yield Input(placeholder="root,p4admin", id="f-target-become")
+
+            yield Label("── Jumpbox (optional) ──────────────────────────────────", classes="section")
+            yield Label("Host [optional — leave blank for no jumpbox]", classes="field-label")
+            yield Input(placeholder="hostname or IP", id="f-jumpbox-host")
+            yield Label("User [optional]", classes="field-label")
+            yield Input(placeholder="pquirk", id="f-jumpbox-user")
+            yield Label("1Password item [optional]", classes="field-label")
+            yield Input(placeholder="op://vault/item/field", id="f-jumpbox-op-item")
+            yield Label("become_user [optional, comma-separated]", classes="field-label")
+            yield Input(placeholder="root", id="f-jumpbox-become")
+
+            yield Static("Ctrl+S  save  •  Escape  cancel", id="hints")
+
+    def _val(self, id: str) -> str:
+        return self.query_one(f"#{id}", Input).value.strip()
+
+    def _become(self, raw: str) -> list[str]:
+        return [u.strip() for u in raw.split(",") if u.strip()]
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_save(self) -> None:
+        group = self._val("f-group")
+        target_host = self._val("f-target-host")
+        if not group or not target_host:
+            self.query_one("#hints", Static).update(
+                "[red]Group and target host are required.[/red]"
+            )
+            return
+
+        target: dict = {"host": target_host}
+        if u := self._val("f-target-user"):
+            target["user"] = u
+        if p := self._val("f-target-port"):
+            target["port"] = int(p)
+        if o := self._val("f-target-op-item"):
+            target["op_item"] = o
+        if b := self._become(self._val("f-target-become")):
+            target["become_user"] = b
+
+        entry: dict = {"target": target}
+        if d := self._val("f-description"):
+            entry["description"] = d
+
+        if jh := self._val("f-jumpbox-host"):
+            jumpbox: dict = {"host": jh}
+            if u := self._val("f-jumpbox-user"):
+                jumpbox["user"] = u
+            if o := self._val("f-jumpbox-op-item"):
+                jumpbox["op_item"] = o
+            if b := self._become(self._val("f-jumpbox-become")):
+                jumpbox["become_user"] = b
+            entry["jumpbox"] = jumpbox
+
+        self.dismiss((group, entry))
+
+
+def _fuzzy_match(query: str, text: str) -> bool:
+    """Return True if all chars of query appear in order in text (case-insensitive)."""
+    it = iter(text.lower())
+    return all(c in it for c in query.lower())
+
+
+def _entry_search_text(group_name: str, entry: HostEntry) -> str:
+    parts = [group_name, entry.target.host]
+    if entry.description:
+        parts.append(entry.description)
+    if entry.jumpbox and entry.jumpbox.host:
+        parts.append(entry.jumpbox.host)
+    return " ".join(parts)
+
+
+class GroupedListView(ListView):
+    """Single ListView with group-header items that are skipped during navigation."""
+
+    def __init__(self, flat_entries: list[Optional[HostEntry]], *items: ListItem) -> None:
+        self.flat_entries = flat_entries
+        super().__init__(*items)
+
+    def _skip_headers(self, direction: str) -> None:
+        action = getattr(super(), f"action_cursor_{direction}")
+        action()
+        while self.index is not None and self.flat_entries[self.index] is None:
+            action()
+
+    def action_cursor_down(self) -> None:
+        self._skip_headers("down")
+
+    def action_cursor_up(self) -> None:
+        self._skip_headers("up")
+
+
+class SSHTUIApp(App[Optional[HostEntry]]):
+    TITLE = "ssh-tui"
+    CSS = """
+    Screen { layout: vertical; }
+
+    #search {
+        margin: 1 2 0 2;
+    }
+
+    GroupedListView {
+        height: 1fr;
+        border: solid $accent;
+        margin: 0 2 1 2;
+    }
+
+    .group-header {
+        margin-top: 1;
+        background: $surface-darken-1;
+        padding: 0 1;
+    }
+
+    .group-header Label {
+        text-style: bold;
+        color: $accent;
+    }
+
+    #detail {
+        height: auto;
+        padding: 0 3 1 3;
+        color: $text-muted;
+    }
+    """
+    BINDINGS = [
+        Binding("escape", "quit", "Quit"),
+        Binding("enter", "connect", "Connect", show=True),
+        Binding("ctrl+n", "add_host", "New host", show=True),
+        Binding("down", "cursor_down", "Down", show=False, priority=True),
+        Binding("up", "cursor_up", "Up", show=False, priority=True),
+        Binding("j", "cursor_down", "Down", show=False),
+        Binding("k", "cursor_up", "Up", show=False),
+    ]
+
+    def __init__(self, groups: list[HostGroup]) -> None:
+        self.groups = groups
+        super().__init__()
+
+    def _build_flat(self, query: str) -> tuple[list[Optional[HostEntry]], list[ListItem]]:
+        flat: list[Optional[HostEntry]] = []
+        items: list[ListItem] = []
+        for group in self.groups:
+            matches = [e for e in group.entries if not query or _fuzzy_match(query, _entry_search_text(group.name, e))]
+            if not matches:
+                continue
+            flat.append(None)
+            items.append(ListItem(Label(group.name), classes="group-header"))
+            for entry in matches:
+                flat.append(entry)
+                items.append(ListItem(Label(entry.display_name)))
+        return flat, items
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Input(placeholder="Search hosts...", id="search")
+        flat, items = self._build_flat("")
+        yield GroupedListView(flat, *items)
+        yield Static("", id="detail")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#search", Input).focus()
+        self.query_one(GroupedListView).action_cursor_down()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id != "search":
+            return
+        flat, items = self._build_flat(event.value)
+        lv = self.query_one(GroupedListView)
+        lv.clear()
+        lv.flat_entries = flat
+        for item in items:
+            lv.append(item)
+        if flat:
+            lv.index = 0
+            lv.action_cursor_down()  # skip header
+        self.query_one("#detail", Static).update("")
+
+    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        lv = self.query_one(GroupedListView)
+        if lv.index is not None:
+            entry = lv.flat_entries[lv.index]
+            self.query_one("#detail", Static).update(entry.detail_text if entry else "")
+
+    def _current_entry(self) -> Optional[HostEntry]:
+        lv = self.query_one(GroupedListView)
+        if lv.index is None:
+            return None
+        entry = lv.flat_entries[lv.index]
+        return entry  # None if on a header
+
+    def action_cursor_down(self) -> None:
+        self.query_one(GroupedListView).action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        self.query_one(GroupedListView).action_cursor_up()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        entry = self._current_entry()
+        if entry is not None:
+            self.exit(entry)
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        entry = self._current_entry()
+        if entry is not None:
+            self.exit(entry)
+
+    def action_quit(self) -> None:
+        if len(self.screen_stack) > 1:
+            return  # modal is open; let it handle escape
+        self.exit(None)
+
+    def action_connect(self) -> None:
+        entry = self._current_entry()
+        if entry is not None:
+            self.exit(entry)
+
+    def action_add_host(self) -> None:
+        def on_dismiss(result) -> None:
+            if result is None:
+                return
+            group_name, entry_raw = result
+            save_host(group_name, entry_raw)
+            # Reload config and rebuild the list.
+            self.groups = load_config(CONFIG_PATH)
+            flat, items = self._build_flat(self.query_one("#search", Input).value)
+            lv = self.query_one(GroupedListView)
+            lv.clear()
+            lv.flat_entries = flat
+            for item in items:
+                lv.append(item)
+            lv.action_cursor_down()
+
+        self.push_screen(AddHostScreen(), on_dismiss)
+
+
+def main() -> None:
+    if not CONFIG_PATH.exists():
+        sys.exit(f"Config not found: {CONFIG_PATH}\nCreate it based on hosts.example.yaml")
+
+    groups = load_config(CONFIG_PATH)
+    if not groups:
+        sys.exit("No groups configured in hosts.yaml")
+
+    # Allow bypassing the TUI for debugging: ssh-tui --debug 0
+    # Index is into the flat list of all entries across all groups.
+    flat = [e for g in groups for e in g.entries]
+    args = [a for a in sys.argv[1:] if a != "--debug"]
+    if args and args[0].isdigit():
+        selected = flat[int(args[0])]
+    else:
+        selected = SSHTUIApp(groups).run()
+
+    if selected is not None:
+        subprocess.run(["stty", "sane"], stderr=subprocess.DEVNULL)
+        # Reset scroll region and re-enable auto-wrap (both disabled by Textual).
+        print("\033[r\033[?7h\033[H\033[2J", end="", flush=True)
+        try:
+            connect(selected)
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            sys.exit(f"Connection error: {e}")
+
+
+if __name__ == "__main__":
+    main()

@@ -91,3 +91,5 @@ export PATH="$HOME/perforce:$PATH"
 
 #### Git overrides
 git config --global core.autocrlf input
+
+. "$HOME/.local/bin/env"

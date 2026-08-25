@@ -1,0 +1,37 @@
+groups:
+  - name: "Personal"
+    hosts:
+      - target:
+          host: dev.example.com
+          user: pquirk
+          op_item: "op://Private/dev-host/password"
+          become_user: [root]
+
+  - name: "Production"
+    hosts:
+      - description: "App server"
+        jumpbox:
+          host: jump.prod.example.com
+          user: pquirk
+        target:
+          host: app.prod.internal
+          op_item: "op://Private/jump-prod/password"
+          become_user: [root]
+
+      - description: "App server as deploy user"
+        jumpbox:
+          host: jump.prod.example.com
+          user: pquirk
+        target:
+          host: app.prod.internal
+          op_item: "op://Private/jump-prod/password"
+          become_user: [root, deploy]
+
+  - name: "Farm"
+    hosts:
+      - description: "Xterm container"
+        target:
+          host: xterm.farm.example.com
+          port: 5857
+          user: pquirk
+          op_item: "op://Private/farm-xterm/password"
