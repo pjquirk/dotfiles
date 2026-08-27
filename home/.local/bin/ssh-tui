@@ -169,7 +169,8 @@ def _build_connection(entry: HostEntry) -> tuple[str, str, list[str]]:
 
     # Two hops: build SSH-to-target command, then wrap with jumpbox escalation.
     tgt_port_arg = f"-p {tgt.port} " if tgt.port else ""
-    ssh_to_tgt = f"ssh -t {tgt_port_arg}{tgt.host} \"{tgt_local}\"" if tgt_local else f"ssh {tgt_port_arg}{tgt.host}"
+    tgt_user_str = f"{tgt.user}@" if tgt.user else ""
+    ssh_to_tgt = f"ssh -t {tgt_port_arg}{tgt_user_str}{tgt.host} \"{tgt_local}\"" if tgt_local else f"ssh {tgt_port_arg}{tgt_user_str}{tgt.host}"
     remote_cmd, n_jb = _hop_escalation(jb, ssh_to_tgt)
     if remote_cmd is None:
         remote_cmd = ssh_to_tgt
@@ -431,13 +432,34 @@ class GroupedListView(ListView):
         action = getattr(super(), f"action_cursor_{direction}")
         action()
         while self.index is not None and self.flat_entries[self.index] is None:
+            prev_index = self.index
             action()
+            if self.index == prev_index:
+                break
 
     def action_cursor_down(self) -> None:
         self._skip_headers("down")
 
     def action_cursor_up(self) -> None:
         self._skip_headers("up")
+
+    def _land_on_entry(self, direction: str) -> None:
+        action = getattr(super(), f"action_cursor_{direction}")
+        while self.index is not None and self.flat_entries[self.index] is None:
+            prev_index = self.index
+            action()
+            if self.index == prev_index:
+                break
+
+    def action_cursor_home(self) -> None:
+        if self.flat_entries:
+            self.index = 0
+            self._land_on_entry("down")
+
+    def action_cursor_end(self) -> None:
+        if self.flat_entries:
+            self.index = len(self.flat_entries) - 1
+            self._land_on_entry("up")
 
 
 class SSHTUIApp(App[Optional[HostEntry]]):
@@ -480,6 +502,8 @@ class SSHTUIApp(App[Optional[HostEntry]]):
         Binding("up", "cursor_up", "Up", show=False, priority=True),
         Binding("j", "cursor_down", "Down", show=False),
         Binding("k", "cursor_up", "Up", show=False),
+        Binding("home", "cursor_home", "Top", show=False, priority=True),
+        Binding("end", "cursor_end", "Bottom", show=False, priority=True),
     ]
 
     def __init__(self, groups: list[HostGroup]) -> None:
@@ -544,6 +568,12 @@ class SSHTUIApp(App[Optional[HostEntry]]):
 
     def action_cursor_up(self) -> None:
         self.query_one(GroupedListView).action_cursor_up()
+
+    def action_cursor_home(self) -> None:
+        self.query_one(GroupedListView).action_cursor_home()
+
+    def action_cursor_end(self) -> None:
+        self.query_one(GroupedListView).action_cursor_end()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         entry = self._current_entry()

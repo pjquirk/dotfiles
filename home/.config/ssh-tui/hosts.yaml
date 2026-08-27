@@ -42,6 +42,25 @@ groups:
           op_item: "op://NVIDIA/p4-master/password"
           become_user: [root, p4admin]
 
+      - description: "GCP Sync Host 1"
+        jumpbox:
+          host: p4-icmse-01
+          user: pquirk
+          op_item: "op://NVIDIA/p4-master/password"
+          become_user: [root, p4admin]
+        target:
+          host: gcp-usw3-scm-prd-scm-nodes-01.hwinf-gcp
+          user: p4admin
+      - description: "GCP Sync Host 1 (svc-scm-pse-cloud)"
+        jumpbox:
+          host: p4-icmse-01
+          user: pquirk
+          op_item: "op://NVIDIA/p4-master/password"
+          become_user: [root, p4admin]
+        target:
+          host: gcp-usw3-scm-prd-scm-nodes-01.hwinf-gcp
+          user: svc-scm-pse-cloud
+
   - name: "Ansible Runners"
     hosts:
       - description: "dc2-scm-ansible-02 (root)"
